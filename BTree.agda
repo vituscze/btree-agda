@@ -28,12 +28,11 @@ module Sized where
     keep : ∀ {n} → BTree n                 → Inserted n
     push : ∀ {n} → (x : A) (l r : BTree n) → Inserted n
 
-  module _ where
-    bt₁ : ∀ {n} → A → BTree n → BTree n → BTree (suc n)
-    bt₁ x l r = br (t₁ x l r)
+  bt₁ : ∀ {n} → A → BTree n → BTree n → BTree (suc n)
+  bt₁ x l r = br (t₁ x l r)
 
-    bt₂ : ∀ {n} → A → A → BTree n → BTree n → BTree n → BTree (suc n)
-    bt₂ x₁ x₂ l m r = br (t₂ x₁ x₂ l m r)
+  bt₂ : ∀ {n} → A → A → BTree n → BTree n → BTree n → BTree (suc n)
+  bt₂ x₁ x₂ l m r = br (t₂ x₁ x₂ l m r)
 
   insert : ∀ {n} → A → BTree n → Inserted n
   insert y nil = push y nil nil
@@ -60,3 +59,14 @@ module Sized where
   insert y (br (t₂ x₁ x₂ l m r)) | tri> _ _ _ | tri> _ _ _ with insert y r
   insert y (br (t₂ x₁ x₂ l m r)) | tri> _ _ _ | tri> _ _ _ | keep r′       = keep (bt₂ x₁ x₂ l m r′)
   insert y (br (t₂ x₁ x₂ l m r)) | tri> _ _ _ | tri> _ _ _ | push x′ l′ r′ = push x₂ (bt₁ x₁ l m) (bt₁ x′ l′ r′)
+
+data Tree : Set a where
+  some : ∀ {n} → Sized.BTree n → Tree
+
+private
+  repack : ∀ {n} → Sized.Inserted n → Tree
+  repack (Sized.keep x)     = some x
+  repack (Sized.push x l r) = some (Sized.bt₁ x l r)
+
+insert : A → Tree → Tree
+insert x (some t) = repack (Sized.insert x t)
