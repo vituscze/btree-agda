@@ -22,6 +22,7 @@ module Sized where
     bt₂ : ∀ {n} (l : BTree n) (x₁ : A) (m : BTree n) (x₂ : A) (r : BTree n) →
           BTree (suc n)
 
+
   data Inserted (n : ℕ) : Set a where
     keep : (t : BTree n)                       → Inserted n
     push : (l : BTree n) (x : A) (r : BTree n) → Inserted n
@@ -52,6 +53,7 @@ module Sized where
   ... | keep e′       = keep (bt₂ a b c d e′)
   ... | push e₀ e₁ e₂ = push (bt₁ a b c) d (bt₁ e₀ e₁ e₂)
 
+
   data Deleted : ℕ → Set a where
     keep : ∀ {n} (t : BTree n) → Deleted n
     pull : ∀ {n} (t : BTree n) → Deleted (suc n)
@@ -59,25 +61,43 @@ module Sized where
   delete : ∀ {n} → A → BTree n → Deleted n
   delete x = search
     where
+    -- Yay, confusing type signatures.
+    bt₁₋₁₋₁ : ∀ {n} → BTree n → _
+    bt₁₋₁₋₁ a = λ b c d e f g → bt₁ (bt₁ a b c) d (bt₁ e f g)
+
+    bt₁₋₂ˡ : ∀ {n} → BTree n → _
+    bt₁₋₂ˡ a = λ b c d e f g → bt₁ (bt₂ a b c d e) f g
+
+    bt₁₋₂ʳ : ∀ {n} → BTree (suc n) → _
+    bt₁₋₂ʳ a = λ b c d e f g → bt₁ a b (bt₂ c d e f g)
+
+    bt₂₋₁₋₁ˡ : ∀ {n} → BTree n → _
+    bt₂₋₁₋₁ˡ a = λ b c d e f g h i → bt₂ (bt₁ a b c) d (bt₁ e f g) h i
+
+    bt₂₋₁₋₁ʳ : ∀ {n} → BTree (suc n) → _
+    bt₂₋₁₋₁ʳ a = λ b c d e f g h i → bt₂ a b (bt₁ c d e) f (bt₁ g h i)
+
+
     merge-bt₁-l : ∀ {n} → BTree n → A → BTree (suc n) → Deleted (2 + n)
     merge-bt₁-l a′ b (bt₁ c₀ c₁ c₂)       = pull (bt₂ a′ b c₀ c₁ c₂)
-    merge-bt₁-l a′ b (bt₂ c₀ c₁ c₂ c₃ c₄) = keep (bt₁ (bt₁ a′ b c₀) c₁ (bt₁ c₂ c₃ c₄))
+    merge-bt₁-l a′ b (bt₂ c₀ c₁ c₂ c₃ c₄) = keep (bt₁₋₁₋₁ a′ b c₀ c₁ c₂ c₃ c₄)
 
     merge-bt₁-r : ∀ {n} → BTree (suc n) → A → BTree n → Deleted (2 + n)
     merge-bt₁-r (bt₁ a₀ a₁ a₂)       b c′ = pull (bt₂ a₀ a₁ a₂ b c′)
-    merge-bt₁-r (bt₂ a₀ a₁ a₂ a₃ a₄) b c′ = keep (bt₁ (bt₁ a₀ a₁ a₂) a₃ (bt₁ a₄ b c′))
+    merge-bt₁-r (bt₂ a₀ a₁ a₂ a₃ a₄) b c′ = keep (bt₁₋₁₋₁ a₀ a₁ a₂ a₃ a₄ b c′)
 
     merge-bt₂-l : ∀ {n} → BTree n → A → BTree (suc n) → A → BTree (suc n) → Deleted (2 + n)
-    merge-bt₂-l a′ b (bt₁ c₀ c₁ c₂)       d e = keep (bt₁ (bt₂ a′ b c₀ c₁ c₂) d e)
-    merge-bt₂-l a′ b (bt₂ c₀ c₁ c₂ c₃ c₄) d e = keep (bt₂ (bt₁ a′ b c₀) c₁ (bt₁ c₂ c₃ c₄) d e)
+    merge-bt₂-l a′ b (bt₁ c₀ c₁ c₂)       d e = keep (bt₁₋₂ˡ a′ b c₀ c₁ c₂ d e)
+    merge-bt₂-l a′ b (bt₂ c₀ c₁ c₂ c₃ c₄) d e = keep (bt₂₋₁₋₁ˡ a′ b c₀ c₁ c₂ c₃ c₄ d e)
 
     merge-bt₂-m : ∀ {n} → BTree (suc n) → A → BTree n → A → BTree (suc n) → Deleted (2 + n)
-    merge-bt₂-m a b c′ d (bt₁ e₀ e₁ e₂)       = keep (bt₁ a b (bt₂ c′ d e₀ e₁ e₂))
-    merge-bt₂-m a b c′ d (bt₂ e₀ e₁ e₂ e₃ e₄) = keep (bt₂ a b (bt₁ c′ d e₀) e₁ (bt₁ e₂ e₃ e₄))
+    merge-bt₂-m a b c′ d (bt₁ e₀ e₁ e₂)       = keep (bt₁₋₂ʳ a b c′ d e₀ e₁ e₂)
+    merge-bt₂-m a b c′ d (bt₂ e₀ e₁ e₂ e₃ e₄) = keep (bt₂₋₁₋₁ʳ a b c′ d e₀ e₁ e₂ e₃ e₄)
 
     merge-bt₂-r : ∀ {n} → BTree (suc n) → A → BTree (suc n) → A → BTree n → Deleted (2 + n)
-    merge-bt₂-r a b (bt₁ c₀ c₁ c₂)       d e′ = keep (bt₁ a b (bt₂ c₀ c₁ c₂ d e′))
-    merge-bt₂-r a b (bt₂ c₀ c₁ c₂ c₃ c₄) d e′ = keep (bt₂ a b (bt₁ c₀ c₁ c₂) c₃ (bt₁ c₄ d e′))
+    merge-bt₂-r a b (bt₁ c₀ c₁ c₂)       d e′ = keep (bt₁₋₂ʳ a b c₀ c₁ c₂ d e′)
+    merge-bt₂-r a b (bt₂ c₀ c₁ c₂ c₃ c₄) d e′ = keep (bt₂₋₁₋₁ʳ a b c₀ c₁ c₂ c₃ c₄ d e′)
+
 
     data Replace : ℕ → Set a where
       keep : ∀ {n} → A → BTree n → Replace n
@@ -86,11 +106,11 @@ module Sized where
 
     replace-bt₁-r : ∀ {n} → A → BTree (suc n) → A → BTree n → Replace (2 + n)
     replace-bt₁-r x (bt₁ a₀ a₁ a₂)       b c′ = pull x (bt₂ a₀ a₁ a₂ b c′)
-    replace-bt₁-r x (bt₂ a₀ a₁ a₂ a₃ a₄) b c′ = keep x (bt₁ (bt₁ a₀ a₁ a₂) a₃ (bt₁ a₄ b c′))
+    replace-bt₁-r x (bt₂ a₀ a₁ a₂ a₃ a₄) b c′ = keep x (bt₁₋₁₋₁ a₀ a₁ a₂ a₃ a₄ b c′)
 
     replace-bt₂-r : ∀ {n} → A → BTree (suc n) → A → BTree (suc n) → A → BTree n → Replace (2 + n)
-    replace-bt₂-r x a b (bt₁ c₀ c₁ c₂)       d e′ = keep x (bt₁ a b (bt₂ c₀ c₁ c₂ d e′))
-    replace-bt₂-r x a b (bt₂ c₀ c₁ c₂ c₃ c₄) d e′ = keep x (bt₂ a b (bt₁ c₀ c₁ c₂) c₃ (bt₁ c₄ d e′))
+    replace-bt₂-r x a b (bt₁ c₀ c₁ c₂)       d e′ = keep x (bt₁₋₂ʳ a b c₀ c₁ c₂ d e′)
+    replace-bt₂-r x a b (bt₂ c₀ c₁ c₂ c₃ c₄) d e′ = keep x (bt₂₋₁₋₁ʳ a b c₀ c₁ c₂ c₃ c₄ d e′)
 
     replace : ∀ {n} → BTree n → Replace n
     replace nil = leaf
@@ -102,6 +122,7 @@ module Sized where
     ... | keep x e′ = keep x (bt₂ a b c d e′)
     ... | pull x e′ = replace-bt₂-r x a b c d e′
     ... | leaf      = keep d (bt₁ a b c)
+
 
     search : ∀ {n} → BTree n → Deleted n
     search nil = keep nil
@@ -137,6 +158,7 @@ module Sized where
     search (bt₂ a b c d e) | tri> _ _ _ | tri> _ _ _ with search e
     ... | keep e′ = keep (bt₂ a b c d e′)
     ... | pull e′ = merge-bt₂-r a b c d e′
+
 
 data Tree : Set a where
   some : ∀ {n} → Sized.BTree n → Tree
