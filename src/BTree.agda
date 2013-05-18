@@ -66,36 +66,51 @@ module Sized where
             Deleted (2 + n)
     keep₂ a b c d e f g = keep (bt₁ (bt₁ a b c) d (bt₁ e f g))
 
+    merge-bt₁-l : ∀ {n} → BTree n → A → BTree (suc n) → Deleted (2 + n)
+    merge-bt₁-l a′ b (bt₁ c₀ c₁ c₂)       = pull (bt₂ a′ b c₀ c₁ c₂)
+    merge-bt₁-l a′ b (bt₂ c₀ c₁ c₂ c₃ c₄) = keep (bt₁ (bt₁ a′ b c₀) c₁ (bt₁ c₂ c₃ c₄))
+
+    merge-bt₁-r : ∀ {n} → BTree (suc n) → A → BTree n → Deleted (2 + n)
+    merge-bt₁-r (bt₁ a₀ a₁ a₂)       b c′ = pull (bt₂ a₀ a₁ a₂ b c′)
+    merge-bt₁-r (bt₂ a₀ a₁ a₂ a₃ a₄) b c′ = keep (bt₁ (bt₁ a₀ a₁ a₂) a₃ (bt₁ a₄ b c′))
+
+    merge-bt₂-l : ∀ {n} → BTree n → A → BTree (suc n) → A → BTree (suc n) → Deleted (2 + n)
+    merge-bt₂-l a′ b (bt₁ c₀ c₁ c₂)       d e = keep (bt₁ (bt₂ a′ b c₀ c₁ c₂) d e)
+    merge-bt₂-l a′ b (bt₂ c₀ c₁ c₂ c₃ c₄) d e = keep (bt₂ (bt₁ a′ b c₀) c₁ (bt₁ c₂ c₃ c₄) d e)
+
+    merge-bt₂-m : ∀ {n} → BTree (suc n) → A → BTree n → A → BTree (suc n) → Deleted (2 + n)
+    merge-bt₂-m a b c′ d (bt₁ e₀ e₁ e₂)       = keep (bt₁ a b (bt₂ c′ d e₀ e₁ e₂))
+    merge-bt₂-m a b c′ d (bt₂ e₀ e₁ e₂ e₃ e₄) = keep (bt₂ a b (bt₁ c′ d e₀) e₁ (bt₁ e₂ e₃ e₄))
+
+    merge-bt₂-r : ∀ {n} → BTree (suc n) → A → BTree (suc n) → A → BTree n → Deleted (2 + n)
+    merge-bt₂-r a b (bt₁ c₀ c₁ c₂)       d e′ = keep (bt₁ a b (bt₂ c₀ c₁ c₂ d e′))
+    merge-bt₂-r a b (bt₂ c₀ c₁ c₂ c₃ c₄) d e′ = keep (bt₂ a b (bt₁ c₀ c₁ c₂) c₃ (bt₁ c₄ d e′))
+
     search : ∀ {n} → BTree n → Deleted n
     search nil = keep nil
 
     search (bt₁ a b c) with compare x b
     search (bt₁ a b c) | tri< _ _ _ with search a
-    search (bt₁ a b c)                    | tri< _ _ _ | keep a′ = keep (bt₁ a′ b c)
-    search (bt₁ a b (bt₁ c₀ c₁ c₂))       | tri< _ _ _ | pull a′ = pull (bt₂ a′ b c₀ c₁ c₂)
-    search (bt₁ a b (bt₂ c₀ c₁ c₂ c₃ c₄)) | tri< _ _ _ | pull a′ = keep₂ a′ b c₀ c₁ c₂ c₃ c₄
+    ... | keep a′ = keep (bt₁ a′ b c)
+    ... | pull a′ = merge-bt₁-l a′ b c
     search (bt₁ a b c) | tri≈ _ _ _ = {!!}
     search (bt₁ a b c) | tri> _ _ _ with search c
-    search (bt₁ a b c)                    | tri> _ _ _ | keep c′ = keep (bt₁ a b c′)
-    search (bt₁ (bt₁ a₀ a₁ a₂) b c)       | tri> _ _ _ | pull c′ = pull (bt₂ a₀ a₁ a₂ b c′)
-    search (bt₁ (bt₂ a₀ a₁ a₂ a₃ a₄) b c) | tri> _ _ _ | pull c′ = keep₂ a₀ a₁ a₂ a₃ a₄ b c′
+    ... | keep c′ = keep (bt₁ a b c′)
+    ... | pull c′ = merge-bt₁-r a b c′
 
     search (bt₂ a b c d e) with compare x b
     search (bt₂ a b c d e) | tri< _ _ _ with search a
-    search (bt₂ a b c d e) | tri< _ _ _ | keep a′ = keep (bt₂ a′ b c d e)
-    search (bt₂ a b (bt₁ c₀ c₁ c₂) d e)       | tri< _ _ _ | pull a′ = keep (bt₁ (bt₂ a′ b c₀ c₁ c₂) d e)
-    search (bt₂ a b (bt₂ c₀ c₁ c₂ c₃ c₄) d e) | tri< _ _ _ | pull a′ = keep (bt₂ (bt₁ a′ b c₀) c₁ (bt₁ c₂ c₃ c₄) d e)
+    ... | keep a′ = keep (bt₂ a′ b c d e)
+    ... | pull a′ = merge-bt₂-l a′ b c d e
     search (bt₂ a b c d e) | tri≈ _ _ _ = {!!}
     search (bt₂ a b c d e) | tri> _ _ _ with compare x d
     search (bt₂ a b c d e) | tri> _ _ _ | tri< _ _ _ with search c
-    search (bt₂ a b c d e) | tri> _ _ _ | tri< _ _ _ | keep c′ = keep (bt₂ a b c′ d e)
-    search (bt₂ a b c d (bt₁ e₀ e₁ e₂))       | tri> _ _ _ | tri< _ _ _ | pull c′ = keep (bt₁ a b (bt₂ c′ d e₀ e₁ e₂))
-    search (bt₂ a b c d (bt₂ e₀ e₁ e₂ e₃ e₄)) | tri> _ _ _ | tri< _ _ _ | pull c′ = keep (bt₂ a b (bt₁ c′ d e₀) e₁ (bt₁ e₂ e₃ e₄))
+    ... | keep c′ = keep (bt₂ a b c′ d e)
+    ... | pull c′ = merge-bt₂-m a b c′ d e
     search (bt₂ a b c d e) | tri> _ _ _ | tri≈ _ _ _ = {!!}
     search (bt₂ a b c d e) | tri> _ _ _ | tri> _ _ _ with search e
-    search (bt₂ a b c d e) | tri> _ _ _ | tri> _ _ _ | keep e′ = keep (bt₂ a b c d e′)
-    search (bt₂ a b (bt₁ c₀ c₁ c₂) d e)       | tri> _ _ _ | tri> _ _ _ | pull e′ = keep (bt₁ a b (bt₂ c₀ c₁ c₂ d e′))
-    search (bt₂ a b (bt₂ c₀ c₁ c₂ c₃ c₄) d e) | tri> _ _ _ | tri> _ _ _ | pull e′ = keep (bt₂ a b (bt₁ c₀ c₁ c₂) c₃ (bt₁ c₄ d e′))
+    ... | keep e′ = keep (bt₂ a b c d e′)
+    ... | pull e′ = merge-bt₂-r a b c d e′
 
 data Tree : Set a where
   some : ∀ {n} → Sized.BTree n → Tree
