@@ -7,7 +7,7 @@ module BTree
   where
 
 open import Data.Nat
-  using (ℕ; zero; suc)
+  using (ℕ; zero; suc; _+_)
 
 module Sized where
   open import Relation.Nullary
@@ -51,6 +51,51 @@ module Sized where
   insert x (bt₂ a b c d e) | tri> _ _ _ | tri> _ _ _ with insert x e
   ... | keep e′       = keep (bt₂ a b c d e′)
   ... | push e₀ e₁ e₂ = push (bt₁ a b c) d (bt₁ e₀ e₁ e₂)
+
+  data Deleted : ℕ → Set a where
+    keep : ∀ {n} (t : BTree n) → Deleted n
+    pull : ∀ {n} (t : BTree n) → Deleted (suc n)
+
+  delete : ∀ {n} → A → BTree n → Deleted n
+  delete x = search
+    where
+    keep₂ : ∀ {n}
+            (l : BTree n)  (x₁ : A) (ml : BTree n)
+            (x₂ : A)
+            (mr : BTree n) (x₃ : A) (l : BTree n) →
+            Deleted (2 + n)
+    keep₂ a b c d e f g = keep (bt₁ (bt₁ a b c) d (bt₁ e f g))
+
+    search : ∀ {n} → BTree n → Deleted n
+    search nil = keep nil
+
+    search (bt₁ a b c) with compare x b
+    search (bt₁ a b c) | tri< _ _ _ with search a
+    search (bt₁ a b c)                    | tri< _ _ _ | keep a′ = keep (bt₁ a′ b c)
+    search (bt₁ a b (bt₁ c₀ c₁ c₂))       | tri< _ _ _ | pull a′ = pull (bt₂ a′ b c₀ c₁ c₂)
+    search (bt₁ a b (bt₂ c₀ c₁ c₂ c₃ c₄)) | tri< _ _ _ | pull a′ = keep₂ a′ b c₀ c₁ c₂ c₃ c₄
+    search (bt₁ a b c) | tri≈ _ _ _ = {!!}
+    search (bt₁ a b c) | tri> _ _ _ with search c
+    search (bt₁ a b c)                    | tri> _ _ _ | keep c′ = keep (bt₁ a b c′)
+    search (bt₁ (bt₁ a₀ a₁ a₂) b c)       | tri> _ _ _ | pull c′ = pull (bt₂ a₀ a₁ a₂ b c′)
+    search (bt₁ (bt₂ a₀ a₁ a₂ a₃ a₄) b c) | tri> _ _ _ | pull c′ = keep₂ a₀ a₁ a₂ a₃ a₄ b c′
+
+    search (bt₂ a b c d e) with compare x b
+    search (bt₂ a b c d e) | tri< _ _ _ with search a
+    search (bt₂ a b c d e) | tri< _ _ _ | keep a′ = keep (bt₂ a′ b c d e)
+    search (bt₂ a b (bt₁ c₀ c₁ c₂) d e)       | tri< _ _ _ | pull a′ = keep (bt₁ (bt₂ a′ b c₀ c₁ c₂) d e)
+    search (bt₂ a b (bt₂ c₀ c₁ c₂ c₃ c₄) d e) | tri< _ _ _ | pull a′ = keep (bt₂ (bt₁ a′ b c₀) c₁ (bt₁ c₂ c₃ c₄) d e)
+    search (bt₂ a b c d e) | tri≈ _ _ _ = {!!}
+    search (bt₂ a b c d e) | tri> _ _ _ with compare x d
+    search (bt₂ a b c d e) | tri> _ _ _ | tri< _ _ _ with search c
+    search (bt₂ a b c d e) | tri> _ _ _ | tri< _ _ _ | keep c′ = keep (bt₂ a b c′ d e)
+    search (bt₂ a b c d (bt₁ e₀ e₁ e₂))       | tri> _ _ _ | tri< _ _ _ | pull c′ = keep (bt₁ a b (bt₂ c′ d e₀ e₁ e₂))
+    search (bt₂ a b c d (bt₂ e₀ e₁ e₂ e₃ e₄)) | tri> _ _ _ | tri< _ _ _ | pull c′ = keep (bt₂ a b (bt₁ c′ d e₀) e₁ (bt₁ e₂ e₃ e₄))
+    search (bt₂ a b c d e) | tri> _ _ _ | tri≈ _ _ _ = {!!}
+    search (bt₂ a b c d e) | tri> _ _ _ | tri> _ _ _ with search e
+    search (bt₂ a b c d e) | tri> _ _ _ | tri> _ _ _ | keep e′ = keep (bt₂ a b c d e′)
+    search (bt₂ a b (bt₁ c₀ c₁ c₂) d e)       | tri> _ _ _ | tri> _ _ _ | pull e′ = keep (bt₁ a b (bt₂ c₀ c₁ c₂ d e′))
+    search (bt₂ a b (bt₂ c₀ c₁ c₂ c₃ c₄) d e) | tri> _ _ _ | tri> _ _ _ | pull e′ = keep (bt₂ a b (bt₁ c₀ c₁ c₂) c₃ (bt₁ c₄ d e′))
 
 data Tree : Set a where
   some : ∀ {n} → Sized.BTree n → Tree
