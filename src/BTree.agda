@@ -59,13 +59,6 @@ module Sized where
   delete : ∀ {n} → A → BTree n → Deleted n
   delete x = search
     where
-    keep₂ : ∀ {n}
-            (l : BTree n)  (x₁ : A) (ml : BTree n)
-            (x₂ : A)
-            (mr : BTree n) (x₃ : A) (l : BTree n) →
-            Deleted (2 + n)
-    keep₂ a b c d e f g = keep (bt₁ (bt₁ a b c) d (bt₁ e f g))
-
     merge-bt₁-l : ∀ {n} → BTree n → A → BTree (suc n) → Deleted (2 + n)
     merge-bt₁-l a′ b (bt₁ c₀ c₁ c₂)       = pull (bt₂ a′ b c₀ c₁ c₂)
     merge-bt₁-l a′ b (bt₂ c₀ c₁ c₂ c₃ c₄) = keep (bt₁ (bt₁ a′ b c₀) c₁ (bt₁ c₂ c₃ c₄))
