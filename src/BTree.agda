@@ -79,6 +79,30 @@ module Sized where
     merge-bt₂-r a b (bt₁ c₀ c₁ c₂)       d e′ = keep (bt₁ a b (bt₂ c₀ c₁ c₂ d e′))
     merge-bt₂-r a b (bt₂ c₀ c₁ c₂ c₃ c₄) d e′ = keep (bt₂ a b (bt₁ c₀ c₁ c₂) c₃ (bt₁ c₄ d e′))
 
+    data Replace : ℕ → Set a where
+      keep : ∀ {n} → A → BTree n → Replace n
+      pull : ∀ {n} → A → BTree n → Replace (suc n)
+      leaf :                       Replace 0
+
+    replace-bt₁-r : ∀ {n} → A → BTree (suc n) → A → BTree n → Replace (2 + n)
+    replace-bt₁-r x (bt₁ a₀ a₁ a₂)       b c′ = pull x (bt₂ a₀ a₁ a₂ b c′)
+    replace-bt₁-r x (bt₂ a₀ a₁ a₂ a₃ a₄) b c′ = keep x (bt₁ (bt₁ a₀ a₁ a₂) a₃ (bt₁ a₄ b c′))
+
+    replace-bt₂-r : ∀ {n} → A → BTree (suc n) → A → BTree (suc n) → A → BTree n → Replace (2 + n)
+    replace-bt₂-r x a b (bt₁ c₀ c₁ c₂)       d e′ = keep x (bt₁ a b (bt₂ c₀ c₁ c₂ d e′))
+    replace-bt₂-r x a b (bt₂ c₀ c₁ c₂ c₃ c₄) d e′ = keep x (bt₂ a b (bt₁ c₀ c₁ c₂) c₃ (bt₁ c₄ d e′))
+
+    replace : ∀ {n} → BTree n → Replace n
+    replace nil = leaf
+    replace (bt₁ a b c) with replace c
+    ... | keep x c′ = keep x (bt₁ a b c′)
+    ... | pull x c′ = replace-bt₁-r x a b c′
+    ... | leaf      = pull b a
+    replace (bt₂ a b c d e) with replace e
+    ... | keep x e′ = keep x (bt₂ a b c d e′)
+    ... | pull x e′ = replace-bt₂-r x a b c d e′
+    ... | leaf      = keep d (bt₁ a b c)
+
     search : ∀ {n} → BTree n → Deleted n
     search nil = keep nil
 
@@ -86,7 +110,10 @@ module Sized where
     search (bt₁ a b c) | tri< _ _ _ with search a
     ... | keep a′ = keep (bt₁ a′ b c)
     ... | pull a′ = merge-bt₁-l a′ b c
-    search (bt₁ a b c) | tri≈ _ _ _ = {!!}
+    search (bt₁ a b c) | tri≈ _ _ _ with replace a
+    ... | keep x a′ = keep (bt₁ a′ x c)
+    ... | pull x a′ = merge-bt₁-l a′ x c
+    ... | leaf      = pull nil
     search (bt₁ a b c) | tri> _ _ _ with search c
     ... | keep c′ = keep (bt₁ a b c′)
     ... | pull c′ = merge-bt₁-r a b c′
@@ -95,12 +122,18 @@ module Sized where
     search (bt₂ a b c d e) | tri< _ _ _ with search a
     ... | keep a′ = keep (bt₂ a′ b c d e)
     ... | pull a′ = merge-bt₂-l a′ b c d e
-    search (bt₂ a b c d e) | tri≈ _ _ _ = {!!}
+    search (bt₂ a b c d e) | tri≈ _ _ _ with replace a
+    ... | keep x a′ = keep (bt₂ a′ x c d e)
+    ... | pull x a′ = merge-bt₂-l a′ x c d e
+    ... | leaf      = keep (bt₁ c d e)
     search (bt₂ a b c d e) | tri> _ _ _ with compare x d
     search (bt₂ a b c d e) | tri> _ _ _ | tri< _ _ _ with search c
     ... | keep c′ = keep (bt₂ a b c′ d e)
     ... | pull c′ = merge-bt₂-m a b c′ d e
-    search (bt₂ a b c d e) | tri> _ _ _ | tri≈ _ _ _ = {!!}
+    search (bt₂ a b c d e) | tri> _ _ _ | tri≈ _ _ _ with replace c
+    ... | keep x c′ = keep (bt₂ a b c′ x e)
+    ... | pull x c′ = merge-bt₂-m a b c′ x e
+    ... | leaf      = keep (bt₁ a b c)
     search (bt₂ a b c d e) | tri> _ _ _ | tri> _ _ _ with search e
     ... | keep e′ = keep (bt₂ a b c d e′)
     ... | pull e′ = merge-bt₂-r a b c d e′
