@@ -57,8 +57,8 @@ data Tree : Set a where
 
 private
   repack : ∀ {n} → Sized.Inserted n → Tree
-  repack (Sized.keep x)     = some x
-  repack (Sized.push x l r) = some (Sized.bt₁ x l r)
+  repack (Sized.keep t)     = some t
+  repack (Sized.push l x r) = some (Sized.bt₁ l x r)
 
 insert : A → Tree → Tree
 insert x (some t) = repack (Sized.insert x t)
