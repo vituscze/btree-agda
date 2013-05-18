@@ -15,50 +15,42 @@ module Sized where
   open IsStrictTotalOrder isStrictTotalOrder
 
   -- Add more invariants later.
-  mutual
-    data Node (n : ℕ) : Set a where
-      t₁ : (x     : A) (l r   : BTree n) → Node n
-      t₂ : (x₁ x₂ : A) (l m r : BTree n) → Node n
+  data BTree : ℕ → Set a where
+    nil : BTree 0
+    bt₁ : ∀ {n} (l : BTree n) (x  : A) (r : BTree n) →
+          BTree (suc n)
+    bt₂ : ∀ {n} (l : BTree n) (x₁ : A) (m : BTree n) (x₂ : A) (r : BTree n) →
+          BTree (suc n)
 
-    data BTree : ℕ → Set a where
-      nil :                  BTree 0
-      br  : ∀ {n} → Node n → BTree (suc n)
-
-  data Inserted : ℕ → Set a where
-    keep : ∀ {n} → BTree n                 → Inserted n
-    push : ∀ {n} → (x : A) (l r : BTree n) → Inserted n
-
-  bt₁ : ∀ {n} → A → BTree n → BTree n → BTree (suc n)
-  bt₁ x l r = br (t₁ x l r)
-
-  bt₂ : ∀ {n} → A → A → BTree n → BTree n → BTree n → BTree (suc n)
-  bt₂ x₁ x₂ l m r = br (t₂ x₁ x₂ l m r)
+  data Inserted (n : ℕ) : Set a where
+    keep : (t : BTree n)                       → Inserted n
+    push : (l : BTree n) (x : A) (r : BTree n) → Inserted n
 
   insert : ∀ {n} → A → BTree n → Inserted n
-  insert y nil = push y nil nil
+  insert x nil = push nil x nil
 
-  insert y (br (t₁ x l r)) with compare y x
-  insert y (br (t₁ x l r)) | tri< _ _ _ with insert y l
-  insert y (br (t₁ x l r)) | tri< _ _ _ | keep l′       = keep (bt₁ x l′ r)
-  insert y (br (t₁ x l r)) | tri< _ _ _ | push x′ l′ r′ = keep (bt₂ x′ x l′ r′ r)
-  insert y (br (t₁ x l r)) | tri≈ _ _ _ = keep (bt₁ x l r)
-  insert y (br (t₁ x l r)) | tri> _ _ _ with insert y r
-  insert y (br (t₁ x l r)) | tri> _ _ _ | keep r′       = keep (bt₁ x l r′)
-  insert y (br (t₁ x l r)) | tri> _ _ _ | push x′ l′ r′ = keep (bt₂ x x′ l l′ r′)
+  insert x (bt₁ a b c) with compare x b
+  insert x (bt₁ a b c) | tri< _ _ _ with insert x a
+  ... | keep a′       = keep (bt₁ a′ b c)
+  ... | push a₀ a₁ a₂ = keep (bt₂ a₀ a₁ a₂ b c)
+  insert x (bt₁ a b c) | tri≈ _ _ _ = keep (bt₁ a b c)
+  insert x (bt₁ a b c) | tri> _ _ _ with insert x c
+  ... | keep c′       = keep (bt₁ a b c′)
+  ... | push c₀ c₁ c₂ = keep (bt₂ a b c₀ c₁ c₂)
 
-  insert y (br (t₂ x₁ x₂ l m r)) with compare y x₁
-  insert y (br (t₂ x₁ x₂ l m r)) | tri< _ _ _ with insert y l
-  insert y (br (t₂ x₁ x₂ l m r)) | tri< _ _ _ | keep l′       = keep (bt₂ x₁ x₂ l′ m r)
-  insert y (br (t₂ x₁ x₂ l m r)) | tri< _ _ _ | push x′ l′ r′ = push x₁ (bt₁ x′ l′ r′) (bt₁ x₂ m r)
-  insert y (br (t₂ x₁ x₂ l m r)) | tri≈ _ _ _ = keep (bt₂ x₁ x₂ l m r)
-  insert y (br (t₂ x₁ x₂ l m r)) | tri> _ _ _ with compare y x₂
-  insert y (br (t₂ x₁ x₂ l m r)) | tri> _ _ _ | tri< _ _ _ with insert y m
-  insert y (br (t₂ x₁ x₂ l m r)) | tri> _ _ _ | tri< _ _ _ | keep m′       = keep (bt₂ x₁ x₂ l m′ r)
-  insert y (br (t₂ x₁ x₂ l m r)) | tri> _ _ _ | tri< _ _ _ | push x′ l′ r′ = push x′ (bt₁ x₁ l l′) (bt₁ x₂ r′ r)
-  insert y (br (t₂ x₁ x₂ l m r)) | tri> _ _ _ | tri≈ _ _ _ = keep (bt₂ x₁ x₂ l m r)
-  insert y (br (t₂ x₁ x₂ l m r)) | tri> _ _ _ | tri> _ _ _ with insert y r
-  insert y (br (t₂ x₁ x₂ l m r)) | tri> _ _ _ | tri> _ _ _ | keep r′       = keep (bt₂ x₁ x₂ l m r′)
-  insert y (br (t₂ x₁ x₂ l m r)) | tri> _ _ _ | tri> _ _ _ | push x′ l′ r′ = push x₂ (bt₁ x₁ l m) (bt₁ x′ l′ r′)
+  insert x (bt₂ a b c d e) with compare x b
+  insert x (bt₂ a b c d e) | tri< _ _ _ with insert x a
+  ... | keep a′       = keep (bt₂ a′ b c d e)
+  ... | push a₀ a₁ a₂ = push (bt₁ a₀ a₁ a₂) b (bt₁ c d e)
+  insert x (bt₂ a b c d e) | tri≈ _ _ _ = keep (bt₂ a b c d e)
+  insert x (bt₂ a b c d e) | tri> _ _ _ with compare x d
+  insert x (bt₂ a b c d e) | tri> _ _ _ | tri< _ _ _ with insert x c
+  ... | keep c′       = keep (bt₂ a b c′ d e)
+  ... | push c₀ c₁ c₂ = push (bt₁ a b c₀) c₁ (bt₁ c₂ d e)
+  insert x (bt₂ a b c d e) | tri> _ _ _ | tri≈ _ _ _ = keep (bt₂ a b c d e)
+  insert x (bt₂ a b c d e) | tri> _ _ _ | tri> _ _ _ with insert x e
+  ... | keep e′       = keep (bt₂ a b c d e′)
+  ... | push e₀ e₁ e₂ = push (bt₁ a b c) d (bt₁ e₀ e₁ e₂)
 
 data Tree : Set a where
   some : ∀ {n} → Sized.BTree n → Tree
