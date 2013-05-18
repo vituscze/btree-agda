@@ -142,9 +142,16 @@ data Tree : Set a where
   some : ∀ {n} → Sized.BTree n → Tree
 
 private
-  repack : ∀ {n} → Sized.Inserted n → Tree
-  repack (Sized.keep t)     = some t
-  repack (Sized.push l x r) = some (Sized.bt₁ l x r)
+  repack-i : ∀ {n} → Sized.Inserted n → Tree
+  repack-i (Sized.keep t)     = some t
+  repack-i (Sized.push l x r) = some (Sized.bt₁ l x r)
+
+  repack-d : ∀ {n} → Sized.Deleted n → Tree
+  repack-d (Sized.keep t) = some t
+  repack-d (Sized.pull t) = some t
 
 insert : A → Tree → Tree
-insert x (some t) = repack (Sized.insert x t)
+insert x (some t) = repack-i (Sized.insert x t)
+
+delete : A → Tree → Tree
+delete x (some t) = repack-d (Sized.delete x t)
