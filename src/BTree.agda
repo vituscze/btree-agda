@@ -159,6 +159,11 @@ module Sized where
     ... | keep e′ = keep (bt₂ a b c d e′)
     ... | pull e′ = merge-bt₂-r a b c d e′
 
+  empty : BTree 0
+  empty = nil
+
+  singleton : A → BTree 1
+  singleton x = bt₁ nil x nil
 
 data Tree : Set a where
   some : ∀ {n} → Sized.BTree n → Tree
@@ -177,3 +182,9 @@ insert x (some t) = repack-i (Sized.insert x t)
 
 delete : A → Tree → Tree
 delete x (some t) = repack-d (Sized.delete x t)
+
+empty : Tree
+empty = some Sized.empty
+
+singleton : A → Tree
+singleton x = some (Sized.singleton x)
