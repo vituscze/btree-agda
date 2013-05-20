@@ -6,6 +6,8 @@ module BTree
   (isStrictTotalOrder : IsStrictTotalOrder _≡_ _<_)
   where
 
+open import Data.Maybe
+  using (Maybe; just; nothing)
 open import Data.Nat
   using (ℕ; zero; suc; _+_)
 
@@ -164,6 +166,25 @@ module Sized where
 
   singleton : A → BTree 1
   singleton x = bt₁ nil x nil
+
+  lookup : ∀ {n} → A → BTree n → Maybe A
+  lookup x t = go t
+    where
+    go : ∀ {n} → BTree n → Maybe A
+    go nil = nothing
+
+    go (bt₁ a b c) with compare x b
+    ... | tri< _ _ _ = go a
+    ... | tri≈ _ _ _ = just b
+    ... | tri> _ _ _ = go c
+
+    go (bt₂ a b c d e) with compare x b
+    ... | tri< _ _ _ = go a
+    ... | tri≈ _ _ _ = just b
+    go (bt₂ a b c d e) | tri> _ _ _ with compare x d
+    ... | tri< _ _ _ = go c
+    ... | tri≈ _ _ _ = just d
+    ... | tri> _ _ _ = go e
 
 data Tree : Set a where
   some : ∀ {n} → Sized.BTree n → Tree
