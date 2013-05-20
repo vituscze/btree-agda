@@ -199,7 +199,7 @@ module Sized where
   singleton k v = bt₁ nil (k , v) nil
 
   lookup : ∀ {n} → (k : K) → BTree n → Maybe (V k)
-  lookup k t = go t
+  lookup k = go
     where
     go : ∀ {n} → BTree n → Maybe (V k)
     go nil = nothing
@@ -242,3 +242,6 @@ empty = some Sized.empty
 
 singleton : (k : K) → V k → Tree
 singleton k v = some (Sized.singleton k v)
+
+lookup : (k : K) → Tree → Maybe (V k)
+lookup k (some t) = Sized.lookup k t
