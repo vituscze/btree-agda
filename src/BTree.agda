@@ -7,12 +7,18 @@ module BTree
   (isStrictTotalOrder : IsStrictTotalOrder _≡_ _<_)
   where
 
+open import Data.Bool
+  using (Bool)
+open import Data.List
+  using (List; []; _∷_; foldr)
 open import Data.Maybe
-  using (Maybe; just; nothing)
+  using (Maybe; just; nothing; maybeToBool)
 open import Data.Nat
   using (ℕ; zero; suc; _+_)
 open import Data.Product
-  using (Σ; _,_; proj₁; proj₂)
+  using (Σ; _,_; proj₁; proj₂; uncurry)
+open import Function
+  using (_∘_; id)
 open import Level
   using (_⊔_)
 
@@ -59,7 +65,7 @@ module Sized where
     keep : (t : BTree n)                        → Inserted n
     push : (l : BTree n) (x : KV) (r : BTree n) → Inserted n
 
-  insert : ∀ {n} → (k : K) → V k → BTree n → Inserted n
+  insert : ∀ {n} (k : K) → V k → BTree n → Inserted n
   insert k v = go
     where
     go : ∀ {n} → BTree n → Inserted n
@@ -245,3 +251,19 @@ singleton k v = some (Sized.singleton k v)
 
 lookup : (k : K) → Tree → Maybe (V k)
 lookup k (some t) = Sized.lookup k t
+
+_∈?_ : K → Tree → Bool
+k ∈? t = maybeToBool (lookup k t)
+
+fromList : List KV → Tree
+fromList = foldr (uncurry insert) empty
+
+toList : Tree → List KV
+toList (some t) = go t []
+  where
+  open Sized
+
+  go : ∀ {n} → BTree n → List KV → List KV
+  go nil             = id
+  go (bt₁ a b c)     = go a ∘ _∷_ b ∘ go c
+  go (bt₂ a b c d e) = go a ∘ _∷_ b ∘ go c ∘ _∷_ d ∘ go e
