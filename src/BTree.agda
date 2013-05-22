@@ -81,7 +81,7 @@ module Sized where
     go (bt₁ a b c)        | c< with go a
     ... | keep a′         = keep (bt₁ a′ b c)
     ... | push a₀ a₁ a₂   = keep (bt₂ a₀ a₁ a₂ b c)
-    go (bt₁ a (_ , bv) c) | c≈ p rewrite sym p = keep (bt₁ a (k , f bv v) c)
+    go (bt₁ a (_ , bv) c) | c≈ p rewrite sym p = keep (bt₁ a (k , f v bv) c)
     go (bt₁ a b c)        | c> with go c
     ... | keep c′         = keep (bt₁ a b c′)
     ... | push c₀ c₁ c₂   = keep (bt₂ a b c₀ c₁ c₂)
@@ -90,11 +90,11 @@ module Sized where
     go (bt₂ a b c d e)        | c<  with go a
     ... | keep a′       = keep (bt₂ a′ b c d e)
     ... | push a₀ a₁ a₂ = push (bt₁ a₀ a₁ a₂) b (bt₁ c d e)
-    go (bt₂ a (_ , bv) c d e) | c≈₁ p rewrite sym p = keep (bt₂ a (k , f bv v) c d e)
+    go (bt₂ a (_ , bv) c d e) | c≈₁ p rewrite sym p = keep (bt₂ a (k , f v bv) c d e)
     go (bt₂ a b c d e)        | c>< with go c
     ... | keep c′       = keep (bt₂ a b c′ d e)
     ... | push c₀ c₁ c₂ = push (bt₁ a b c₀) c₁ (bt₁ c₂ d e)
-    go (bt₂ a b c (_ , dv) e) | c≈₂ p rewrite sym p = keep (bt₂ a b c (k , f dv v) e)
+    go (bt₂ a b c (_ , dv) e) | c≈₂ p rewrite sym p = keep (bt₂ a b c (k , f v dv) e)
     go (bt₂ a b c d e)        | c>  with go e
     ... | keep e′       = keep (bt₂ a b c d e′)
     ... | push e₀ e₁ e₂ = push (bt₁ a b c) d (bt₁ e₀ e₁ e₂)
