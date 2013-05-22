@@ -18,7 +18,7 @@ open import Data.Nat
 open import Data.Product
   using (Σ; _,_; proj₁; proj₂; uncurry)
 open import Function
-  using (_∘_; id)
+  using (_∘_; id; const)
 open import Level
   using (_⊔_)
 
@@ -71,31 +71,31 @@ module Sized where
     keep : (t : BTree n)                        → Inserted n
     push : (l : BTree n) (x : KV) (r : BTree n) → Inserted n
 
-  insert : ∀ {n} (k : K) → V k → BTree n → Inserted n
-  insert k v = go
+  insertWith : ∀ {n} (k : K) → V k → (V k → V k → V k) → BTree n → Inserted n
+  insertWith k v f = go
     where
     go : ∀ {n} → BTree n → Inserted n
     go nil = push nil (k , v) nil
 
     go (bt₁ a b c) with cmp₂ k b
-    go (bt₁ a b c) | c< with go a
+    go (bt₁ a b c)        | c< with go a
     ... | keep a′         = keep (bt₁ a′ b c)
     ... | push a₀ a₁ a₂   = keep (bt₂ a₀ a₁ a₂ b c)
-    go (bt₁ a b c) | c≈ _ = keep (bt₁ a (k , v) c)
-    go (bt₁ a b c) | c> with go c
+    go (bt₁ a (_ , bv) c) | c≈ p rewrite sym p = keep (bt₁ a (k , f bv v) c)
+    go (bt₁ a b c)        | c> with go c
     ... | keep c′         = keep (bt₁ a b c′)
     ... | push c₀ c₁ c₂   = keep (bt₂ a b c₀ c₁ c₂)
 
     go (bt₂ a b c d e) with cmp₃ k b d
-    go (bt₂ a b c d e) | c<  with go a
+    go (bt₂ a b c d e)        | c<  with go a
     ... | keep a′       = keep (bt₂ a′ b c d e)
     ... | push a₀ a₁ a₂ = push (bt₁ a₀ a₁ a₂) b (bt₁ c d e)
-    go (bt₂ a b c d e) | c≈₁ _ = keep (bt₂ a (k , v) c d e)
-    go (bt₂ a b c d e) | c>< with go c
+    go (bt₂ a (_ , bv) c d e) | c≈₁ p rewrite sym p = keep (bt₂ a (k , f bv v) c d e)
+    go (bt₂ a b c d e)        | c>< with go c
     ... | keep c′       = keep (bt₂ a b c′ d e)
     ... | push c₀ c₁ c₂ = push (bt₁ a b c₀) c₁ (bt₁ c₂ d e)
-    go (bt₂ a b c d e) | c≈₂ _ = keep (bt₂ a b c (k , v) e)
-    go (bt₂ a b c d e) | c>  with go e
+    go (bt₂ a b c (_ , dv) e) | c≈₂ p rewrite sym p = keep (bt₂ a b c (k , f dv v) e)
+    go (bt₂ a b c d e)        | c>  with go e
     ... | keep e′       = keep (bt₂ a b c d e′)
     ... | push e₀ e₁ e₂ = push (bt₁ a b c) d (bt₁ e₀ e₁ e₂)
 
@@ -240,8 +240,11 @@ private
   repack-d (Sized.keep t) = some t
   repack-d (Sized.pull t) = some t
 
+insertWith : (k : K) → V k → (V k → V k → V k) → Tree → Tree
+insertWith k v f (some t) = repack-i (Sized.insertWith k v f t)
+
 insert : (k : K) → V k → Tree → Tree
-insert k v (some t) = repack-i (Sized.insert k v t)
+insert k v = insertWith k v const
 
 delete : K → Tree → Tree
 delete k (some t) = repack-d (Sized.delete k t)
