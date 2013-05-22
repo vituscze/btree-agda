@@ -30,25 +30,31 @@ module Sized where
 
   open IsStrictTotalOrder isStrictTotalOrder
 
-  data Cmp₂ : Set where
-    c< c≈ c> : Cmp₂
+  data Cmp₂ (k₁ k₂ : K) : Set k where
+    c< :           Cmp₂ k₁ k₂
+    c≈ : k₁ ≡ k₂ → Cmp₂ k₁ k₂
+    c> :           Cmp₂ k₁ k₂
 
-  data Cmp₃ : Set where
-    c< c≈₁ c>< c≈₂ c> : Cmp₃
+  data Cmp₃ (k₁ k₂ k₃ : K) : Set k where
+    c<  :           Cmp₃ k₁ k₂ k₃
+    c≈₁ : k₁ ≡ k₂ → Cmp₃ k₁ k₂ k₃
+    c>< :           Cmp₃ k₁ k₂ k₃
+    c≈₂ : k₁ ≡ k₃ → Cmp₃ k₁ k₂ k₃
+    c>  :           Cmp₃ k₁ k₂ k₃
 
-  cmp₂ : K → KV → Cmp₂
+  cmp₂ : (k₁ : K) (kv₂ : KV) → Cmp₂ k₁ (proj₁ kv₂)
   cmp₂ a (b , _) with compare a b
   ... | tri< _ _ _ = c<
-  ... | tri≈ _ _ _ = c≈
+  ... | tri≈ _ p _ = c≈ p
   ... | tri> _ _ _ = c>
 
-  cmp₃ : K → KV → KV → Cmp₃
+  cmp₃ : (k₁ : K) (kv₂ : KV) (kv₃ : KV) → Cmp₃ k₁ (proj₁ kv₂) (proj₁ kv₃)
   cmp₃ a (b , _) (c , _) with compare a b
   ... | tri< _ _ _ = c<
-  ... | tri≈ _ _ _ = c≈₁
+  ... | tri≈ _ p _ = c≈₁ p
   ... | tri> _ _ _ with compare a c
   ... | tri< _ _ _ = c><
-  ... | tri≈ _ _ _ = c≈₂
+  ... | tri≈ _ p _ = c≈₂ p
   ... | tri> _ _ _ = c>
 
 
@@ -73,22 +79,22 @@ module Sized where
 
     go (bt₁ a b c) with cmp₂ k b
     go (bt₁ a b c) | c< with go a
-    ... | keep a′       = keep (bt₁ a′ b c)
-    ... | push a₀ a₁ a₂ = keep (bt₂ a₀ a₁ a₂ b c)
-    go (bt₁ a b c) | c≈ = keep (bt₁ a (k , v) c)
+    ... | keep a′         = keep (bt₁ a′ b c)
+    ... | push a₀ a₁ a₂   = keep (bt₂ a₀ a₁ a₂ b c)
+    go (bt₁ a b c) | c≈ _ = keep (bt₁ a (k , v) c)
     go (bt₁ a b c) | c> with go c
-    ... | keep c′       = keep (bt₁ a b c′)
-    ... | push c₀ c₁ c₂ = keep (bt₂ a b c₀ c₁ c₂)
+    ... | keep c′         = keep (bt₁ a b c′)
+    ... | push c₀ c₁ c₂   = keep (bt₂ a b c₀ c₁ c₂)
 
     go (bt₂ a b c d e) with cmp₃ k b d
     go (bt₂ a b c d e) | c<  with go a
     ... | keep a′       = keep (bt₂ a′ b c d e)
     ... | push a₀ a₁ a₂ = push (bt₁ a₀ a₁ a₂) b (bt₁ c d e)
-    go (bt₂ a b c d e) | c≈₁ = keep (bt₂ a (k , v) c d e)
+    go (bt₂ a b c d e) | c≈₁ _ = keep (bt₂ a (k , v) c d e)
     go (bt₂ a b c d e) | c>< with go c
     ... | keep c′       = keep (bt₂ a b c′ d e)
     ... | push c₀ c₁ c₂ = push (bt₁ a b c₀) c₁ (bt₁ c₂ d e)
-    go (bt₂ a b c d e) | c≈₂ = keep (bt₂ a b c (k , v) e)
+    go (bt₂ a b c d e) | c≈₂ _ = keep (bt₂ a b c (k , v) e)
     go (bt₂ a b c d e) | c>  with go e
     ... | keep e′       = keep (bt₂ a b c d e′)
     ... | push e₀ e₁ e₂ = push (bt₁ a b c) d (bt₁ e₀ e₁ e₂)
@@ -168,33 +174,33 @@ module Sized where
     search nil = keep nil
 
     search (bt₁ a b c) with cmp₂ k b
-    search (bt₁ a b c) | c< with search a
+    search (bt₁ a b c) | c<   with search a
     ... | keep a′ = keep (bt₁ a′ b c)
     ... | pull a′ = merge-bt₁-l a′ b c
-    search (bt₁ a b c) | c≈ with replace a
+    search (bt₁ a b c) | c≈ _ with replace a
     ... | keep k a′ = keep (bt₁ a′ k c)
     ... | pull k a′ = merge-bt₁-l a′ k c
     ... | leaf      = pull nil
-    search (bt₁ a b c) | c> with search c
+    search (bt₁ a b c) | c>   with search c
     ... | keep c′ = keep (bt₁ a b c′)
     ... | pull c′ = merge-bt₁-r a b c′
 
     search (bt₂ a b c d e) with cmp₃ k b d
-    search (bt₂ a b c d e) | c<  with search a
+    search (bt₂ a b c d e) | c<    with search a
     ... | keep a′ = keep (bt₂ a′ b c d e)
     ... | pull a′ = merge-bt₂-l a′ b c d e
-    search (bt₂ a b c d e) | c≈₁ with replace a
+    search (bt₂ a b c d e) | c≈₁ _ with replace a
     ... | keep x a′ = keep (bt₂ a′ x c d e)
     ... | pull x a′ = merge-bt₂-l a′ x c d e
     ... | leaf      = keep (bt₁ c d e)
-    search (bt₂ a b c d e) | c>< with search c
+    search (bt₂ a b c d e) | c><   with search c
     ... | keep c′ = keep (bt₂ a b c′ d e)
     ... | pull c′ = merge-bt₂-m a b c′ d e
-    search (bt₂ a b c d e) | c≈₂ with replace c
+    search (bt₂ a b c d e) | c≈₂ _ with replace c
     ... | keep x c′ = keep (bt₂ a b c′ x e)
     ... | pull x c′ = merge-bt₂-m a b c′ x e
     ... | leaf      = keep (bt₁ a b c)
-    search (bt₂ a b c d e) | c>  with search e
+    search (bt₂ a b c d e) | c>    with search e
     ... | keep e′ = keep (bt₂ a b c d e′)
     ... | pull e′ = merge-bt₂-r a b c d e′
 
@@ -210,20 +216,17 @@ module Sized where
     go : ∀ {n} → BTree n → Maybe (V k)
     go nil = nothing
 
-    -- Alas, can't use cmp₂ nor cmp₃ here. We need the proof that
-    -- the keys are indeed equal.
-    go (bt₁ a (bk , bv) c) with compare k bk
-    ... | tri< _ _ _ = go a
-    ... | tri≈ _ p _ rewrite p = just bv
-    ... | tri> _ _ _ = go c
+    go (bt₁ a b c) with cmp₂ k b
+    ... | c< = go a
+    ... | c≈ p rewrite p = just (proj₂ b)
+    ... | c> = go c
 
-    go (bt₂ a (bk , bv) c (dk , dv) e) with compare k bk
-    ... | tri< _ _ _ = go a
-    ... | tri≈ _ p _ rewrite p = just bv
-    ... | tri> _ _ _ with compare k dk
-    ... | tri< _ _ _ = go c
-    ... | tri≈ _ p _ rewrite p = just dv
-    ... | tri> _ _ _ = go e
+    go (bt₂ a b c d e) with cmp₃ k b d
+    ... | c<  = go a
+    ... | c≈₁ p rewrite p = just (proj₂ b)
+    ... | c>< = go c
+    ... | c≈₂ p rewrite p = just (proj₂ d)
+    ... | c>  = go e
 
 data Tree : Set (k ⊔ v) where
   some : ∀ {n} → Sized.BTree n → Tree
