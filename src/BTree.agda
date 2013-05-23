@@ -273,3 +273,9 @@ toList (some t) = go t []
   go nil             = id
   go (bt₁ a b c)     = go a ∘ _∷_ b ∘ go c
   go (bt₂ a b c d e) = go a ∘ _∷_ b ∘ go c ∘ _∷_ d ∘ go e
+
+unionWith : (∀ {k} → V k → V k → V k) → Tree → Tree → Tree
+unionWith f t₁ t₂ = foldr (λ {(k , v) → insertWith k v f}) t₂ (toList t₁)
+
+union : Tree → Tree → Tree
+union = unionWith const
