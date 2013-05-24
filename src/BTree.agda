@@ -9,8 +9,10 @@ module BTree
 
 open import Data.Bool
   using (Bool)
+open import Data.DifferenceList as DL
+  using (DiffList; []; _∷_; _++_)
 open import Data.List
-  using (List; []; _∷_; foldr)
+  using (List; foldr)
 open import Data.Maybe
   using (Maybe; just; nothing; maybeToBool)
 open import Data.Nat
@@ -228,6 +230,17 @@ module Sized where
     ... | c≈₂ p rewrite p = just (proj₂ d)
     ... | c>  = go e
 
+  fold : ∀ {n r} {R : Set r}
+         (f₃ : R → KV → R → KV → R → R)
+         (f₂ : R → KV → R → R) (l : R) →
+         BTree n → R
+  fold f₃ f₂ l = go
+    where
+    go : ∀ {n} → BTree n → _
+    go nil             = l
+    go (bt₁ a b c)     = f₂ (go a) b (go c)
+    go (bt₂ a b c d e) = f₃ (go a) b (go c) d (go e)
+
 data Tree : Set (k ⊔ v) where
   some : ∀ {n} → Sized.BTree n → Tree
 
@@ -249,6 +262,12 @@ insert k v = insertWith k v const
 delete : K → Tree → Tree
 delete k (some t) = repack-d (Sized.delete k t)
 
+fold : ∀ {r} {R : Set r}
+       (f₃ : R → KV → R → KV → R → R)
+       (f₂ : R → KV → R → R) (l : R) →
+       Tree → R
+fold f₃ f₂ l (some t) = Sized.fold f₃ f₂ l t
+
 empty : Tree
 empty = some Sized.empty
 
@@ -265,14 +284,7 @@ fromList : List KV → Tree
 fromList = foldr (uncurry insert) empty
 
 toList : Tree → List KV
-toList (some t) = go t []
-  where
-  open Sized
-
-  go : ∀ {n} → BTree n → List KV → List KV
-  go nil             = id
-  go (bt₁ a b c)     = go a ∘ _∷_ b ∘ go c
-  go (bt₂ a b c d e) = go a ∘ _∷_ b ∘ go c ∘ _∷_ d ∘ go e
+toList = DL.toList ∘ fold (λ a b c d e → a ++ b ∷ c ++ d ∷ e) (λ a b c → a ++ b ∷ c) []
 
 unionWith : (∀ {k} → V k → V k → V k) → Tree → Tree → Tree
 unionWith f t₁ t₂ = foldr (λ {(k , v) → insertWith k v f}) t₂ (toList t₁)
