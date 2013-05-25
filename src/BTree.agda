@@ -22,7 +22,7 @@ open import Data.Nat
 open import Data.Product
   using (Σ; _,_; proj₁; proj₂; uncurry)
 open import Function
-  using (_∘_; id; const)
+  using (_∘_; id; const; flip)
 open import Level
   using (_⊔_)
 
@@ -33,36 +33,38 @@ KV = Σ K V
 
 module Sized where
   open import Relation.Nullary
-  open Extended-key
 
+  open Extended-key
   open IsStrictTotalOrder isStrictTotalOrder
 
-  data Cmp₂ (k₁ k₂ : K) : Set k where
-    c< :           Cmp₂ k₁ k₂
-    c≈ : k₁ ≡ k₂ → Cmp₂ k₁ k₂
-    c> :           Cmp₂ k₁ k₂
+  _>_ = flip _<_
 
-  data Cmp₃ (k₁ k₂ k₃ : K) : Set k where
-    c<  :           Cmp₃ k₁ k₂ k₃
-    c≈₁ : k₁ ≡ k₂ → Cmp₃ k₁ k₂ k₃
-    c>< :           Cmp₃ k₁ k₂ k₃
-    c≈₂ : k₁ ≡ k₃ → Cmp₃ k₁ k₂ k₃
-    c>  :           Cmp₃ k₁ k₂ k₃
+  data Cmp₂ (k₁ k₂ : K) : Set (k ⊔ ℓ) where
+    c< : k₁ < k₂ → Cmp₂ k₁ k₂
+    c≈ : k₁ ≡ k₂ → Cmp₂ k₁ k₂
+    c> : k₁ > k₂ → Cmp₂ k₁ k₂
+
+  data Cmp₃ (k₁ k₂ k₃ : K) : Set (k ⊔ ℓ) where
+    c<  : k₁ < k₂ →           Cmp₃ k₁ k₂ k₃
+    c≈₁ : k₁ ≡ k₂ →           Cmp₃ k₁ k₂ k₃
+    c>< : k₁ > k₂ → k₁ < k₃ → Cmp₃ k₁ k₂ k₃
+    c≈₂ : k₁ ≡ k₃ →           Cmp₃ k₁ k₂ k₃
+    c>  : k₁ > k₃ →           Cmp₃ k₁ k₂ k₃
 
   cmp₂ : (k₁ : K) (kv₂ : KV) → Cmp₂ k₁ (proj₁ kv₂)
   cmp₂ a (b , _) with compare a b
-  ... | tri< _ _ _ = c<
+  ... | tri< p _ _ = c< p
   ... | tri≈ _ p _ = c≈ p
-  ... | tri> _ _ _ = c>
+  ... | tri> _ _ p = c> p
 
   cmp₃ : (k₁ : K) (kv₂ : KV) (kv₃ : KV) → Cmp₃ k₁ (proj₁ kv₂) (proj₁ kv₃)
   cmp₃ a (b , _) (c , _) with compare a b
-  ... | tri< _ _ _ = c<
+  ... | tri< p _ _ = c<  p
   ... | tri≈ _ p _ = c≈₁ p
-  ... | tri> _ _ _ with compare a c
-  ... | tri< _ _ _ = c><
-  ... | tri≈ _ p _ = c≈₂ p
-  ... | tri> _ _ _ = c>
+  ... | tri> _ _ p with compare a c
+  ... | tri< q _ _ = c>< p q
+  ... | tri≈ _ q _ = c≈₂ q
+  ... | tri> _ _ q = c>  q
 
 
   data BTree⁺ (lb ub : Key⁺) : ℕ → Set (k ⊔ v ⊔ ℓ) where
@@ -93,26 +95,25 @@ module Sized where
     go : ∀ {n lb ub} → lb <⁺ [ k ] → [ k ] <⁺ ub → BTree⁺ lb ub n → Inserted⁺ lb ub n
     go p₁ p₂ nil = push (k , v) (nil {p = p₁}) (nil {p = p₂})
 
-    go p₁ p₂ (bt₁ b a c) with compare k (proj₁ b)
-    go p₁ p₂ (bt₁ b a c) | tri< pa _ _ with go p₁ pa a
+    go p₁ p₂ (bt₁ b a c) with cmp₂ k b
+    go p₁ p₂ (bt₁ b a c)         | c< pa with go p₁ pa a
     ... | keep a′       = keep (bt₁ b a′ c)
     ... | push a₂ a₁ a₃ = keep (bt₂ a₂ b a₁ a₃ c)
-    go p₁ p₂ (bt₁ (bk , bv) a c) | tri≈ _ pb _ rewrite sym pb = keep (bt₁ (k , f v bv) a c)
-    go p₁ p₂ (bt₁ b a c) | tri> _ _ pc with go pc p₂ c
+    go p₁ p₂ (bt₁ (bk , bv) a c) | c≈ pb rewrite sym pb = keep (bt₁ (k , f v bv) a c)
+    go p₁ p₂ (bt₁ b a c)         | c> pc with go pc p₂ c
     ... | keep c′       = keep (bt₁ b a c′)
     ... | push c₂ c₁ c₃ = keep (bt₂ b c₂ a c₁ c₃)
 
-    go p₁ p₂ (bt₂ b d a c e) with compare k (proj₁ b)
-    go p₁ p₂ (bt₂ b d a c e) | tri< pa _ _ with go p₁ pa a
+    go p₁ p₂ (bt₂ b d a c e) with cmp₃ k b d
+    go p₁ p₂ (bt₂ b d a c e)         | c<  pa with go p₁ pa a
     ... | keep a′       = keep (bt₂ b d a′ c e)
     ... | push a₂ a₁ a₃ = push b (bt₁ a₂ a₁ a₃) (bt₁ d c e)
-    go p₁ p₂ (bt₂ (bk , bv) d a c e) | tri≈ _ pb _ rewrite sym pb = keep (bt₂ (k , f v bv) d a c e)
-    go p₁ p₂ (bt₂ b d a c e) | tri> _ _ _ with compare k (proj₁ d)
-    go p₁ p₂ (bt₂ b d a c e) | tri> _ _ pc₁ | tri< pc₂ _ _ with go pc₁ pc₂ c
+    go p₁ p₂ (bt₂ (bk , bv) d a c e) | c≈₁ pb rewrite sym pb = keep (bt₂ (k , f v bv) d a c e)
+    go p₁ p₂ (bt₂ b d a c e)         | c>< pc₁ pc₂ with go pc₁ pc₂ c
     ... | keep c′       = keep (bt₂ b d a c′ e)
     ... | push c₂ c₁ c₃ = push c₂ (bt₁ b a c₁) (bt₁ d c₃ e)
-    go p₁ p₂ (bt₂ b (dk , dv) a c e) | tri> _ _ _ | tri≈ _ pd _ rewrite sym pd = keep (bt₂ b (k , f v dv) a c e)
-    go p₁ p₂ (bt₂ b d a c e) | tri> _ _ _ | tri> _ _ pe with go pe p₂ e
+    go p₁ p₂ (bt₂ b (dk , dv) a c e) | c≈₂ pd rewrite sym pd = keep (bt₂ b (k , f v dv) a c e)
+    go p₁ p₂ (bt₂ b d a c e)         | c>  pe with go pe p₂ e
     ... | keep e′       = keep (bt₂ b d a c e′)
     ... | push e₂ e₁ e₃ = push d (bt₁ b a c) (bt₁ e₂ e₁ e₃)
 
