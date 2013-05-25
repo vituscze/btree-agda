@@ -7,6 +7,8 @@ module BTree
   (isStrictTotalOrder : IsStrictTotalOrder _≡_ _<_)
   where
 
+open import Data.AVL as AVL
+  using ()
 open import Data.Bool
   using (Bool)
 open import Data.DifferenceList as DL
@@ -23,6 +25,8 @@ open import Function
   using (_∘_; id; const)
 open import Level
   using (_⊔_)
+
+module Extended-key = AVL.Extended-key V isStrictTotalOrder
 
 KV : Set (k ⊔ v)
 KV = Σ K V
