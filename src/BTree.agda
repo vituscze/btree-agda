@@ -71,7 +71,7 @@ module Sized where
   ... | tri> _ _ q = c>  q
 
   [_]₁ : KV → Key⁺
-  [ x ]₁ = [ proj₁ x ]
+  [ x , _ ]₁ = [ x ]
 
   data BTree⁺ (lb ub : Key⁺) : ℕ → Set kvl where
     nil : (p : lb <⁺ ub) →
@@ -100,7 +100,10 @@ module Sized where
   insertWith⁺ : ∀ {n} (k : K) → V k → (V k → V k → V k) → BTree⁺ ⊥⁺ ⊤⁺ n → Inserted⁺ ⊥⁺ ⊤⁺ n
   insertWith⁺ k v f = go _ _
     where
-    go : ∀ {n lb ub} → lb <⁺ [ k ] → [ k ] <⁺ ub → BTree⁺ lb ub n → Inserted⁺ lb ub n
+    go : ∀ {n lb ub}
+         (p₁ : lb <⁺ [ k ]) (p₂ : [ k ] <⁺ ub)
+         (t : BTree⁺ lb ub n) → Inserted⁺ lb ub n
+
     go p₁ p₂ (nil _) = push (k , v) (nil p₁) (nil p₂)
 
     go p₁ p₂ (bt₁ b a c) with cmp₂ k b
@@ -127,78 +130,130 @@ module Sized where
 
 
   data Deleted⁺ (lb ub : Key⁺) : ℕ → Set kvl where
-    keep : ∀ {n} (t : BTree⁺ lb ub n) → Deleted⁺ lb ub n
-    pull : ∀ {n} (t : BTree⁺ lb ub n) → Deleted⁺ lb ub (suc n)
+    keep : ∀ {n} (t : BTree⁺ lb ub n) →
+           Deleted⁺ lb ub n
+    pull : ∀ {n} (t : BTree⁺ lb ub n) →
+           Deleted⁺ lb ub (suc n)
 
   data Replace⁺ (lb ub : Key⁺) : ℕ → Set kvl where
-    keep : ∀ {n} (x : KV) → [ proj₁ x ] <⁺ ub → BTree⁺ lb [ proj₁ x ] n → Replace⁺ lb ub n
-    pull : ∀ {n} (x : KV) → [ proj₁ x ] <⁺ ub → BTree⁺ lb [ proj₁ x ] n → Replace⁺ lb ub (suc n)
-    leaf :                                                                Replace⁺ lb ub 0
+    keep : ∀ {n}
+           (x : KV) (p : [ x ]₁ <⁺ ub)
+           (t : BTree⁺ lb [ x ]₁ n) →
+           Replace⁺ lb ub n
+    pull : ∀ {n}
+           (x : KV) (p : [ x ]₁ <⁺ ub)
+           (t : BTree⁺ lb [ x ]₁ n) →
+           Replace⁺ lb ub (suc n)
+    leaf : Replace⁺ lb ub 0
 
-  extend : ∀ {n lb₁ lb₂ ub} → lb₁ <⁺ lb₂ → BTree⁺ lb₂ ub n → BTree⁺ lb₁ ub n
-  extend {lb₁ = lb₁} p (nil p₁) = nil (trans⁺ lb₁ p p₁)
-  extend p (bt₁ b a c)     = bt₁ b (extend p a) c
-  extend p (bt₂ b d a c e) = bt₂ b d (extend p a) c e
+  extend : ∀ {lb₁ lb₂ ub n} (p : lb₁ <⁺ lb₂) (t : BTree⁺ lb₂ ub n) → BTree⁺ lb₁ ub n
+  extend {l} p (nil p₁)        = nil (trans⁺ l p p₁)
+  extend     p (bt₁ b a c)     = bt₁ b (extend p a) c
+  extend     p (bt₂ b d a c e) = bt₂ b d (extend p a) c e
 
-  delete : ∀ {n} → K → BTree⁺ ⊥⁺ ⊤⁺ n → Deleted⁺ ⊥⁺ ⊤⁺ n
+  delete : ∀ {n} (k : K) (t : BTree⁺ ⊥⁺ ⊤⁺ n) → Deleted⁺ ⊥⁺ ⊤⁺ n
   delete k = search
     where
-    replace : ∀ {n lb ub} → BTree⁺ lb ub n → Replace⁺ lb ub n
+    replace : ∀ {n lb ub} (t : BTree⁺ lb ub n) → Replace⁺ lb ub n
     replace (nil _) = leaf
 
     replace (bt₁ b a c) with replace c
-    replace (bt₁ b a c) | keep x q c′ = keep x q (bt₁ b a c′)
-    replace (bt₁ b (bt₁ a₂ a₁ a₃) c)       | pull x q c′ = pull x q (bt₂ a₂ b a₁ a₃ c′)
-    replace (bt₁ b (bt₂ a₂ a₄ a₁ a₃ a₅) c) | pull x q c′ = keep x q (bt₁ a₄ (bt₁ a₂ a₁ a₃) (bt₁ b a₅ c′))
-    replace (bt₁ b a (nil p)) | leaf = pull b p a
+    replace (bt₁ b a c)                    | keep x q c′
+            = keep x q (bt₁ b a c′)
+    replace (bt₁ b (bt₁ a₂ a₁ a₃) c)       | pull x q c′
+            = pull x q (bt₂ a₂ b a₁ a₃ c′)
+    replace (bt₁ b (bt₂ a₂ a₄ a₁ a₃ a₅) c) | pull x q c′
+            = keep x q (bt₁ a₄ (bt₁ a₂ a₁ a₃) (bt₁ b a₅ c′))
+    replace (bt₁ b a (nil p))              | leaf
+            = pull b p a
 
     replace (bt₂ b d a c e) with replace e
-    replace (bt₂ b d a c e) | keep x q e′ = keep x q (bt₂ b d a c e′)
-    replace (bt₂ b d a (bt₁ c₂ c₁ c₃) e)       | pull x q e′ = keep x q (bt₁ b a (bt₂ c₂ d c₁ c₃ e′))
-    replace (bt₂ b d a (bt₂ c₂ c₄ c₁ c₃ c₅) e) | pull x q e′ = keep x q (bt₂ b c₄ a (bt₁ c₂ c₁ c₃) (bt₁ d c₅ e′))
-    replace (bt₂ b d a c (nil p)) | leaf = keep d p (bt₁ b a c)
+    replace (bt₂ b d a c e)                    | keep x q e′
+            = keep x q (bt₂ b d a c e′)
+    replace (bt₂ b d a (bt₁ c₂ c₁ c₃) e)       | pull x q e′
+            = keep x q (bt₁ b a (bt₂ c₂ d c₁ c₃ e′))
+    replace (bt₂ b d a (bt₂ c₂ c₄ c₁ c₃ c₅) e) | pull x q e′
+            = keep x q (bt₂ b c₄ a (bt₁ c₂ c₁ c₃) (bt₁ d c₅ e′))
+    replace (bt₂ b d a c (nil p))              | leaf
+            = keep d p (bt₁ b a c)
 
-    search : ∀ {n lb ub} → BTree⁺ lb ub n → Deleted⁺ lb ub n
+
+    search : ∀ {n lb ub} (t : BTree⁺ lb ub n) → Deleted⁺ lb ub n
     search (nil p) = keep (nil p)
 
+
     search (bt₁ b a c) with cmp₂ k b
-    search (bt₁ b a c) | c< p with search a
-    search (bt₁ b a c) | c< p | keep a′ = keep (bt₁ b a′ c)
-    search (bt₁ b a (bt₁ c₂ c₁ c₃))       | c< p | pull a′ = pull (bt₂ b c₂ a′ c₁ c₃)
-    search (bt₁ b a (bt₂ c₂ c₄ c₁ c₃ c₅)) | c< p | pull a′ = keep (bt₁ c₂ (bt₁ b a′ c₁) (bt₁ c₄ c₃ c₅))
-    search (bt₁ b a c) | c≈ p with replace a
-    search (bt₁ b a c) | c≈ p | keep x q a′ = keep (bt₁ x a′ (extend q c))
-    search (bt₁ b a (bt₁ c₂ c₁ c₃))       | c≈ p | pull x q a′ = pull (bt₂ x c₂ a′ (extend q c₁) c₃)
-    search (bt₁ b a (bt₂ c₂ c₄ c₁ c₃ c₅)) | c≈ p | pull x q a′ = keep (bt₁ c₂ (bt₁ x a′ (extend q c₁)) (bt₁ c₄ c₃ c₅))
-    search {lb = lb} (bt₁ b (nil p₁) (nil p₂)) | c≈ p | leaf = pull (nil (trans⁺ lb p₁ p₂))
-    search (bt₁ b a c) | c> p with search c
-    search (bt₁ b a c) | c> p | keep c′ = keep (bt₁ b a c′)
-    search (bt₁ b (bt₁ a₂ a₁ a₃) c)       | c> p | pull c′ = pull (bt₂ a₂ b a₁ a₃ c′)
-    search (bt₁ b (bt₂ a₂ a₄ a₁ a₃ a₅) c) | c> p | pull c′ = keep (bt₁ a₄ (bt₁ a₂ a₁ a₃) (bt₁ b a₅ c′))
+    search (bt₁ b a c)                    | c< p with search a
+    search (bt₁ b a c)                    | c< p | keep a′
+           = keep (bt₁ b a′ c)
+    search (bt₁ b a (bt₁ c₂ c₁ c₃))       | c< p | pull a′
+           = pull (bt₂ b c₂ a′ c₁ c₃)
+    search (bt₁ b a (bt₂ c₂ c₄ c₁ c₃ c₅)) | c< p | pull a′
+           = keep (bt₁ c₂ (bt₁ b a′ c₁) (bt₁ c₄ c₃ c₅))
+
+    search (bt₁ b a c)                         | c≈ p with replace a
+    search (bt₁ b a c)                         | c≈ p | keep x q a′
+           = keep (bt₁ x a′ (extend q c))
+    search (bt₁ b a (bt₁ c₂ c₁ c₃))            | c≈ p | pull x q a′
+           = pull (bt₂ x c₂ a′ (extend q c₁) c₃)
+    search (bt₁ b a (bt₂ c₂ c₄ c₁ c₃ c₅))      | c≈ p | pull x q a′
+           = keep (bt₁ c₂ (bt₁ x a′ (extend q c₁)) (bt₁ c₄ c₃ c₅))
+    search {lb = lb} (bt₁ b (nil p₁) (nil p₂)) | c≈ p | leaf
+           = pull (nil (trans⁺ lb p₁ p₂))
+
+    search (bt₁ b a c)                    | c> p with search c
+    search (bt₁ b a c)                    | c> p | keep c′
+           = keep (bt₁ b a c′)
+    search (bt₁ b (bt₁ a₂ a₁ a₃) c)       | c> p | pull c′
+           = pull (bt₂ a₂ b a₁ a₃ c′)
+    search (bt₁ b (bt₂ a₂ a₄ a₁ a₃ a₅) c) | c> p | pull c′
+           = keep (bt₁ a₄ (bt₁ a₂ a₁ a₃) (bt₁ b a₅ c′))
+
 
     search (bt₂ b d a c e) with cmp₃ k b d
-    search (bt₂ b d a c e) | c<  p with search a
-    search (bt₂ b d a c e) | c<  p | keep a′ = keep (bt₂ b d a′ c e)
-    search (bt₂ b d a (bt₁ c₂ c₁ c₃) e)       | c<  p | pull a′ = keep (bt₁ d (bt₂ b c₂ a′ c₁ c₃) e)
-    search (bt₂ b d a (bt₂ c₂ c₄ c₁ c₃ c₅) e) | c<  p | pull a′ = keep (bt₂ c₂ d (bt₁ b a′ c₁) (bt₁ c₄ c₃ c₅) e)
-    search (bt₂ b d a c e) | c≈₁ p with replace a
-    search (bt₂ b d a c e) | c≈₁ p | keep x q a′ = keep (bt₂ x d a′ (extend q c) e)
-    search (bt₂ b d a (bt₁ c₂ c₁ c₃) e)       | c≈₁ p | pull x q a′ = keep (bt₁ d (bt₂ x c₂ a′ (extend q c₁) c₃) e)
-    search (bt₂ b d a (bt₂ c₂ c₄ c₁ c₃ c₅) e) | c≈₁ p | pull x q a′ = keep (bt₂ c₂ d (bt₁ x a′ (extend q c₁)) (bt₁ c₄ c₃ c₅) e)
-    search {lb = lb} (bt₂ b d (nil p₁) (nil p₂) e) | c≈₁ p | leaf = keep (bt₁ d (nil (trans⁺ lb p₁ p₂)) e)
-    search (bt₂ b d a c e) | c>< p q with search c
-    search (bt₂ b d a c e) | c>< p q | keep c′ = keep (bt₂ b d a c′ e)
-    search (bt₂ b d a c (bt₁ e₂ e₁ e₃))       | c>< p q | pull c′ = keep (bt₁ b a (bt₂ d e₂ c′ e₁ e₃))
-    search (bt₂ b d a c (bt₂ e₂ e₄ e₁ e₃ e₅)) | c>< p q | pull c′ = keep (bt₂ b e₂ a (bt₁ d c′ e₁) (bt₁ e₄ e₃ e₅))
-    search (bt₂ b d a c e) | c≈₂ p with replace c
-    search (bt₂ b d a c e) | c≈₂ p | keep x q c′ = keep (bt₂ b x a c′ (extend q e))
-    search (bt₂ b d a c (bt₁ e₂ e₁ e₃))       | c≈₂ p | pull x q c′ = keep (bt₁ b a (bt₂ x e₂ c′ (extend q e₁) e₃))
-    search (bt₂ b d a c (bt₂ e₂ e₄ e₁ e₃ e₅)) | c≈₂ p | pull x q c′ = keep (bt₂ b e₂ a (bt₁ x c′ (extend q e₁)) (bt₁ e₄ e₃ e₅))
-    search {ub = ub} (bt₂ b d a (nil p₁) (nil p₂)) | c≈₂ p | leaf = keep (bt₁ b a (nil (trans⁺ [ proj₁ b ] {[ proj₁ d ]} {ub} p₁ p₂)))
-    search (bt₂ b d a c e) | c>  p with search e
-    search (bt₂ b d a c e) | c> p | keep e′ = keep (bt₂ b d a c e′)
-    search (bt₂ b d a (bt₁ c₂ c₁ c₃) e)       | c>  p | pull e′ = keep (bt₁ b a (bt₂ c₂ d c₁ c₃ e′))
-    search (bt₂ b d a (bt₂ c₂ c₄ c₁ c₃ c₅) e) | c>  p | pull e′ = keep (bt₂ b c₄ a (bt₁ c₂ c₁ c₃) (bt₁ d c₅ e′))
+    search (bt₂ b d a c e)                    | c<  p   with search a
+    search (bt₂ b d a c e)                    | c<  p   | keep a′
+           = keep (bt₂ b d a′ c e)
+    search (bt₂ b d a (bt₁ c₂ c₁ c₃) e)       | c<  p   | pull a′
+           = keep (bt₁ d (bt₂ b c₂ a′ c₁ c₃) e)
+    search (bt₂ b d a (bt₂ c₂ c₄ c₁ c₃ c₅) e) | c<  p   | pull a′
+           = keep (bt₂ c₂ d (bt₁ b a′ c₁) (bt₁ c₄ c₃ c₅) e)
+
+    search (bt₂ b d a c e)                         | c≈₁ p   with replace a
+    search (bt₂ b d a c e)                         | c≈₁ p   | keep x q a′
+           = keep (bt₂ x d a′ (extend q c) e)
+    search (bt₂ b d a (bt₁ c₂ c₁ c₃) e)            | c≈₁ p   | pull x q a′
+           = keep (bt₁ d (bt₂ x c₂ a′ (extend q c₁) c₃) e)
+    search (bt₂ b d a (bt₂ c₂ c₄ c₁ c₃ c₅) e)      | c≈₁ p   | pull x q a′
+           = keep (bt₂ c₂ d (bt₁ x a′ (extend q c₁)) (bt₁ c₄ c₃ c₅) e)
+    search {lb = lb} (bt₂ b d (nil p₁) (nil p₂) e) | c≈₁ p   | leaf
+           = keep (bt₁ d (nil (trans⁺ lb p₁ p₂)) e)
+
+    search (bt₂ b d a c e)                    | c>< p q with search c
+    search (bt₂ b d a c e)                    | c>< p q | keep c′
+           = keep (bt₂ b d a c′ e)
+    search (bt₂ b d a c (bt₁ e₂ e₁ e₃))       | c>< p q | pull c′
+           = keep (bt₁ b a (bt₂ d e₂ c′ e₁ e₃))
+    search (bt₂ b d a c (bt₂ e₂ e₄ e₁ e₃ e₅)) | c>< p q | pull c′
+           = keep (bt₂ b e₂ a (bt₁ d c′ e₁) (bt₁ e₄ e₃ e₅))
+
+    search (bt₂ b d a c e)                         | c≈₂ p   with replace c
+    search (bt₂ b d a c e)                         | c≈₂ p   | keep x q c′
+           = keep (bt₂ b x a c′ (extend q e))
+    search (bt₂ b d a c (bt₁ e₂ e₁ e₃))            | c≈₂ p   | pull x q c′
+           = keep (bt₁ b a (bt₂ x e₂ c′ (extend q e₁) e₃))
+    search (bt₂ b d a c (bt₂ e₂ e₄ e₁ e₃ e₅))      | c≈₂ p   | pull x q c′
+           = keep (bt₂ b e₂ a (bt₁ x c′ (extend q e₁)) (bt₁ e₄ e₃ e₅))
+    search {ub = ub} (bt₂ b d a (nil p₁) (nil p₂)) | c≈₂ p   | leaf
+           = keep (bt₁ b a (nil (trans⁺ [ b ]₁ {[ d ]₁} {ub} p₁ p₂)))
+
+    search (bt₂ b d a c e)                    | c>  p   with search e
+    search (bt₂ b d a c e)                    | c>  p   | keep e′
+           = keep (bt₂ b d a c e′)
+    search (bt₂ b d a (bt₁ c₂ c₁ c₃) e)       | c>  p   | pull e′
+           = keep (bt₁ b a (bt₂ c₂ d c₁ c₃ e′))
+    search (bt₂ b d a (bt₂ c₂ c₄ c₁ c₃ c₅) e) | c>  p   | pull e′
+           = keep (bt₂ b c₄ a (bt₁ c₂ c₁ c₃) (bt₁ d c₅ e′))
 
 
   empty : BTree⁺ ⊥⁺ ⊤⁺ 0
