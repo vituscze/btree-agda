@@ -31,6 +31,10 @@ module Extended-key = AVL.Extended-key V isStrictTotalOrder
 KV : Set (k ⊔ v)
 KV = Σ K V
 
+private
+  kl  = k ⊔ ℓ
+  kvl = k ⊔ v ⊔ ℓ
+
 module Sized where
   open import Relation.Nullary
 
@@ -39,17 +43,17 @@ module Sized where
 
   _>_ = flip _<_
 
-  data Cmp₂ (k₁ k₂ : K) : Set (k ⊔ ℓ) where
-    c< : k₁ < k₂ → Cmp₂ k₁ k₂
-    c≈ : k₁ ≡ k₂ → Cmp₂ k₁ k₂
-    c> : k₁ > k₂ → Cmp₂ k₁ k₂
+  data Cmp₂ (x k : K) : Set kl where
+    c< : x < k → Cmp₂ x k
+    c≈ : x ≡ k → Cmp₂ x k
+    c> : x > k → Cmp₂ x k
 
-  data Cmp₃ (k₁ k₂ k₃ : K) : Set (k ⊔ ℓ) where
-    c<  : k₁ < k₂ →           Cmp₃ k₁ k₂ k₃
-    c≈₁ : k₁ ≡ k₂ →           Cmp₃ k₁ k₂ k₃
-    c>< : k₁ > k₂ → k₁ < k₃ → Cmp₃ k₁ k₂ k₃
-    c≈₂ : k₁ ≡ k₃ →           Cmp₃ k₁ k₂ k₃
-    c>  : k₁ > k₃ →           Cmp₃ k₁ k₂ k₃
+  data Cmp₃ (x k₁ k₂ : K) : Set kl where
+    c<  : x < k₁ →          Cmp₃ x k₁ k₂
+    c≈₁ : x ≡ k₁ →          Cmp₃ x k₁ k₂
+    c>< : x > k₁ → x < k₂ → Cmp₃ x k₁ k₂
+    c≈₂ : x ≡ k₂ →          Cmp₃ x k₁ k₂
+    c>  : x > k₂ →          Cmp₃ x k₁ k₂
 
   cmp₂ : (k₁ : K) (kv₂ : KV) → Cmp₂ k₁ (proj₁ kv₂)
   cmp₂ a (b , _) with compare a b
@@ -66,34 +70,38 @@ module Sized where
   ... | tri≈ _ q _ = c≈₂ q
   ... | tri> _ _ q = c>  q
 
+  [_]₁ : KV → Key⁺
+  [ x ]₁ = [ proj₁ x ]
 
-  data BTree⁺ (lb ub : Key⁺) : ℕ → Set (k ⊔ v ⊔ ℓ) where
-    nil : {p : lb <⁺ ub} →
+  data BTree⁺ (lb ub : Key⁺) : ℕ → Set kvl where
+    nil : (p : lb <⁺ ub) →
           BTree⁺ lb ub 0
-    bt₁ : ∀ {n} (x : KV)
-          (l : BTree⁺ lb          [ proj₁ x ] n)
-          (r : BTree⁺ [ proj₁ x ] ub          n) →
+    bt₁ : ∀ {n}
+          (x : KV)
+          (l : BTree⁺ lb     [ x ]₁ n)
+          (r : BTree⁺ [ x ]₁ ub     n) →
           BTree⁺ lb ub (suc n)
-    bt₂ : ∀ {n} (x₁ x₂ : KV)
-          (l : BTree⁺ lb           [ proj₁ x₁ ] n)
-          (m : BTree⁺ [ proj₁ x₁ ] [ proj₁ x₂ ] n)
-          (r : BTree⁺ [ proj₁ x₂ ] ub           n) →
+    bt₂ : ∀ {n}
+          (x₁ x₂ : KV)
+          (l : BTree⁺ lb      [ x₁ ]₁ n)
+          (m : BTree⁺ [ x₁ ]₁ [ x₂ ]₁ n)
+          (r : BTree⁺ [ x₂ ]₁ ub      n) →
           BTree⁺ lb ub (suc n)
 
 
-  data Inserted⁺ (lb ub : Key⁺) (n : ℕ) : Set (k ⊔ v ⊔ ℓ) where
+  data Inserted⁺ (lb ub : Key⁺) (n : ℕ) : Set kvl where
     keep : (t : BTree⁺ lb ub n) →
            Inserted⁺ lb ub n
     push : (x : KV)
-           (l : BTree⁺ lb          [ proj₁ x ] n)
-           (r : BTree⁺ [ proj₁ x ] ub          n) →
+           (l : BTree⁺ lb     [ x ]₁ n)
+           (r : BTree⁺ [ x ]₁ ub     n) →
            Inserted⁺ lb ub n
 
   insertWith⁺ : ∀ {n} (k : K) → V k → (V k → V k → V k) → BTree⁺ ⊥⁺ ⊤⁺ n → Inserted⁺ ⊥⁺ ⊤⁺ n
   insertWith⁺ k v f = go _ _
     where
     go : ∀ {n lb ub} → lb <⁺ [ k ] → [ k ] <⁺ ub → BTree⁺ lb ub n → Inserted⁺ lb ub n
-    go p₁ p₂ nil = push (k , v) (nil {p = p₁}) (nil {p = p₂})
+    go p₁ p₂ (nil _) = push (k , v) (nil p₁) (nil p₂)
 
     go p₁ p₂ (bt₁ b a c) with cmp₂ k b
     go p₁ p₂ (bt₁ b a c)         | c< pa with go p₁ pa a
@@ -118,17 +126,17 @@ module Sized where
     ... | push e₂ e₁ e₃ = push d (bt₁ b a c) (bt₁ e₂ e₁ e₃)
 
 
-  data Deleted⁺ (lb ub : Key⁺) : ℕ → Set (k ⊔ v ⊔ ℓ) where
+  data Deleted⁺ (lb ub : Key⁺) : ℕ → Set kvl where
     keep : ∀ {n} (t : BTree⁺ lb ub n) → Deleted⁺ lb ub n
     pull : ∀ {n} (t : BTree⁺ lb ub n) → Deleted⁺ lb ub (suc n)
 
-  data Replace⁺ (lb ub : Key⁺) : ℕ → Set (k ⊔ v ⊔ ℓ) where
+  data Replace⁺ (lb ub : Key⁺) : ℕ → Set kvl where
     keep : ∀ {n} (x : KV) → [ proj₁ x ] <⁺ ub → BTree⁺ lb [ proj₁ x ] n → Replace⁺ lb ub n
     pull : ∀ {n} (x : KV) → [ proj₁ x ] <⁺ ub → BTree⁺ lb [ proj₁ x ] n → Replace⁺ lb ub (suc n)
     leaf :                                                                Replace⁺ lb ub 0
 
   extend : ∀ {n lb₁ lb₂ ub} → lb₁ <⁺ lb₂ → BTree⁺ lb₂ ub n → BTree⁺ lb₁ ub n
-  extend {lb₁ = lb₁} p (nil {p = p₁}) = nil {p = trans⁺ lb₁ p p₁}
+  extend {lb₁ = lb₁} p (nil p₁) = nil (trans⁺ lb₁ p p₁)
   extend p (bt₁ b a c)     = bt₁ b (extend p a) c
   extend p (bt₂ b d a c e) = bt₂ b d (extend p a) c e
 
@@ -136,22 +144,22 @@ module Sized where
   delete k = search
     where
     replace : ∀ {n lb ub} → BTree⁺ lb ub n → Replace⁺ lb ub n
-    replace nil = leaf
+    replace (nil _) = leaf
 
     replace (bt₁ b a c) with replace c
     replace (bt₁ b a c) | keep x q c′ = keep x q (bt₁ b a c′)
     replace (bt₁ b (bt₁ a₂ a₁ a₃) c)       | pull x q c′ = pull x q (bt₂ a₂ b a₁ a₃ c′)
     replace (bt₁ b (bt₂ a₂ a₄ a₁ a₃ a₅) c) | pull x q c′ = keep x q (bt₁ a₄ (bt₁ a₂ a₁ a₃) (bt₁ b a₅ c′))
-    replace (bt₁ b a (nil {p = p})) | leaf = pull b p a
+    replace (bt₁ b a (nil p)) | leaf = pull b p a
 
     replace (bt₂ b d a c e) with replace e
     replace (bt₂ b d a c e) | keep x q e′ = keep x q (bt₂ b d a c e′)
     replace (bt₂ b d a (bt₁ c₂ c₁ c₃) e)       | pull x q e′ = keep x q (bt₁ b a (bt₂ c₂ d c₁ c₃ e′))
     replace (bt₂ b d a (bt₂ c₂ c₄ c₁ c₃ c₅) e) | pull x q e′ = keep x q (bt₂ b c₄ a (bt₁ c₂ c₁ c₃) (bt₁ d c₅ e′))
-    replace (bt₂ b d a c (nil {p = p})) | leaf = keep d p (bt₁ b a c)
+    replace (bt₂ b d a c (nil p)) | leaf = keep d p (bt₁ b a c)
 
     search : ∀ {n lb ub} → BTree⁺ lb ub n → Deleted⁺ lb ub n
-    search (nil {p = p}) = keep (nil {p = p})
+    search (nil p) = keep (nil p)
 
     search (bt₁ b a c) with cmp₂ k b
     search (bt₁ b a c) | c< p with search a
@@ -162,7 +170,7 @@ module Sized where
     search (bt₁ b a c) | c≈ p | keep x q a′ = keep (bt₁ x a′ (extend q c))
     search (bt₁ b a (bt₁ c₂ c₁ c₃))       | c≈ p | pull x q a′ = pull (bt₂ x c₂ a′ (extend q c₁) c₃)
     search (bt₁ b a (bt₂ c₂ c₄ c₁ c₃ c₅)) | c≈ p | pull x q a′ = keep (bt₁ c₂ (bt₁ x a′ (extend q c₁)) (bt₁ c₄ c₃ c₅))
-    search {lb = lb} (bt₁ b (nil {p = p₁}) (nil {p = p₂})) | c≈ p | leaf = pull (nil {p = trans⁺ lb p₁ p₂})
+    search {lb = lb} (bt₁ b (nil p₁) (nil p₂)) | c≈ p | leaf = pull (nil (trans⁺ lb p₁ p₂))
     search (bt₁ b a c) | c> p with search c
     search (bt₁ b a c) | c> p | keep c′ = keep (bt₁ b a c′)
     search (bt₁ b (bt₁ a₂ a₁ a₃) c)       | c> p | pull c′ = pull (bt₂ a₂ b a₁ a₃ c′)
@@ -177,7 +185,7 @@ module Sized where
     search (bt₂ b d a c e) | c≈₁ p | keep x q a′ = keep (bt₂ x d a′ (extend q c) e)
     search (bt₂ b d a (bt₁ c₂ c₁ c₃) e)       | c≈₁ p | pull x q a′ = keep (bt₁ d (bt₂ x c₂ a′ (extend q c₁) c₃) e)
     search (bt₂ b d a (bt₂ c₂ c₄ c₁ c₃ c₅) e) | c≈₁ p | pull x q a′ = keep (bt₂ c₂ d (bt₁ x a′ (extend q c₁)) (bt₁ c₄ c₃ c₅) e)
-    search {lb = lb} (bt₂ b d (nil {p = p₁}) (nil {p = p₂}) e) | c≈₁ p | leaf = keep (bt₁ d (nil {p = trans⁺ lb p₁ p₂}) e)
+    search {lb = lb} (bt₂ b d (nil p₁) (nil p₂) e) | c≈₁ p | leaf = keep (bt₁ d (nil (trans⁺ lb p₁ p₂)) e)
     search (bt₂ b d a c e) | c>< p q with search c
     search (bt₂ b d a c e) | c>< p q | keep c′ = keep (bt₂ b d a c′ e)
     search (bt₂ b d a c (bt₁ e₂ e₁ e₃))       | c>< p q | pull c′ = keep (bt₁ b a (bt₂ d e₂ c′ e₁ e₃))
@@ -186,7 +194,7 @@ module Sized where
     search (bt₂ b d a c e) | c≈₂ p | keep x q c′ = keep (bt₂ b x a c′ (extend q e))
     search (bt₂ b d a c (bt₁ e₂ e₁ e₃))       | c≈₂ p | pull x q c′ = keep (bt₁ b a (bt₂ x e₂ c′ (extend q e₁) e₃))
     search (bt₂ b d a c (bt₂ e₂ e₄ e₁ e₃ e₅)) | c≈₂ p | pull x q c′ = keep (bt₂ b e₂ a (bt₁ x c′ (extend q e₁)) (bt₁ e₄ e₃ e₅))
-    search {ub = ub} (bt₂ b d a (nil {p = p₁}) (nil {p = p₂})) | c≈₂ p | leaf = keep (bt₁ b a (nil {p = trans⁺ [ proj₁ b ] {[ proj₁ d ]} {ub} p₁ p₂}))
+    search {ub = ub} (bt₂ b d a (nil p₁) (nil p₂)) | c≈₂ p | leaf = keep (bt₁ b a (nil (trans⁺ [ proj₁ b ] {[ proj₁ d ]} {ub} p₁ p₂)))
     search (bt₂ b d a c e) | c>  p with search e
     search (bt₂ b d a c e) | c> p | keep e′ = keep (bt₂ b d a c e′)
     search (bt₂ b d a (bt₁ c₂ c₁ c₃) e)       | c>  p | pull e′ = keep (bt₁ b a (bt₂ c₂ d c₁ c₃ e′))
@@ -194,16 +202,16 @@ module Sized where
 
 
   empty : BTree⁺ ⊥⁺ ⊤⁺ 0
-  empty = nil
+  empty = nil _
 
   singleton : (k : K) → V k → BTree⁺ ⊥⁺ ⊤⁺ 1
-  singleton k v = bt₁ (k , v) nil nil
+  singleton k v = bt₁ (k , v) (nil _) (nil _)
 
   lookup : ∀ {n} → (k : K) → BTree⁺ ⊥⁺ ⊤⁺ n → Maybe (V k)
   lookup k = go
     where
     go : ∀ {n lb ub} → BTree⁺ lb ub n → Maybe (V k)
-    go nil = nothing
+    go (nil _) = nothing
 
     go (bt₁ b a c) with cmp₂ k b
     ... | c< _ = go a
@@ -224,11 +232,11 @@ module Sized where
   fold {R = R} f₃ f₂ l = go
     where
     go : ∀ {n lb ub} → BTree⁺ lb ub n → R
-    go nil             = l
+    go (nil _)         = l
     go (bt₁ b a c)     = f₂ b (go a) (go c)
     go (bt₂ b d a c e) = f₃ b d (go a) (go c) (go e)
 
-data Tree : Set (k ⊔ v ⊔ ℓ) where
+data Tree : Set kvl where
   some : let open Sized
          in ∀ {n} → BTree⁺ ⊥⁺ ⊤⁺ n → Tree
 
