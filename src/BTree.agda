@@ -34,7 +34,7 @@ KV = Σ K V
 module Sized where
   open import Relation.Nullary
 
-  open Extended-key
+  open Extended-key public
   open IsStrictTotalOrder isStrictTotalOrder
 
   _>_ = flip _<_
@@ -118,192 +118,167 @@ module Sized where
     ... | push e₂ e₁ e₃ = push d (bt₁ b a c) (bt₁ e₂ e₁ e₃)
 
 
---   data Deleted : ℕ → Set (k ⊔ v) where
---     keep : ∀ {n} (t : BTree n) → Deleted n
---     pull : ∀ {n} (t : BTree n) → Deleted (suc n)
+  data Deleted⁺ (lb ub : Key⁺) : ℕ → Set (k ⊔ v ⊔ ℓ) where
+    keep : ∀ {n} (t : BTree⁺ lb ub n) → Deleted⁺ lb ub n
+    pull : ∀ {n} (t : BTree⁺ lb ub n) → Deleted⁺ lb ub (suc n)
 
---   data Replace : ℕ → Set (k ⊔ v) where
---     keep : ∀ {n} → KV → BTree n → Replace n
---     pull : ∀ {n} → KV → BTree n → Replace (suc n)
---     leaf :                        Replace 0
+  data Replace⁺ (lb ub : Key⁺) : ℕ → Set (k ⊔ v ⊔ ℓ) where
+    keep : ∀ {n} (x : KV) → [ proj₁ x ] <⁺ ub → BTree⁺ lb [ proj₁ x ] n → Replace⁺ lb ub n
+    pull : ∀ {n} (x : KV) → [ proj₁ x ] <⁺ ub → BTree⁺ lb [ proj₁ x ] n → Replace⁺ lb ub (suc n)
+    leaf :                                                                Replace⁺ lb ub 0
 
---   delete : ∀ {n} → K → BTree n → Deleted n
---   delete k = search
---     where
---     -- Yay, confusing type signatures.
---     bt₁₋₁₋₁ : ∀ {n} → BTree n → _
---     bt₁₋₁₋₁ a = λ b c d e f g → bt₁ (bt₁ a b c) d (bt₁ e f g)
+  extend : ∀ {n lb₁ lb₂ ub} → lb₁ <⁺ lb₂ → BTree⁺ lb₂ ub n → BTree⁺ lb₁ ub n
+  extend {lb₁ = lb₁} p (nil {p = p₁}) = nil {p = trans⁺ lb₁ p p₁}
+  extend p (bt₁ b a c)     = bt₁ b (extend p a) c
+  extend p (bt₂ b d a c e) = bt₂ b d (extend p a) c e
 
---     bt₁₋₂ˡ : ∀ {n} → BTree n → _
---     bt₁₋₂ˡ a = λ b c d e f g → bt₁ (bt₂ a b c d e) f g
+  delete : ∀ {n} → K → BTree⁺ ⊥⁺ ⊤⁺ n → Deleted⁺ ⊥⁺ ⊤⁺ n
+  delete k = search
+    where
+    replace : ∀ {n lb ub} → BTree⁺ lb ub n → Replace⁺ lb ub n
+    replace nil = leaf
 
---     bt₁₋₂ʳ : ∀ {n} → BTree (suc n) → _
---     bt₁₋₂ʳ a = λ b c d e f g → bt₁ a b (bt₂ c d e f g)
+    replace (bt₁ b a c) with replace c
+    replace (bt₁ b a c) | keep x q c′ = keep x q (bt₁ b a c′)
+    replace (bt₁ b (bt₁ a₂ a₁ a₃) c)       | pull x q c′ = pull x q (bt₂ a₂ b a₁ a₃ c′)
+    replace (bt₁ b (bt₂ a₂ a₄ a₁ a₃ a₅) c) | pull x q c′ = keep x q (bt₁ a₄ (bt₁ a₂ a₁ a₃) (bt₁ b a₅ c′))
+    replace (bt₁ b a (nil {p = p})) | leaf = pull b p a
 
---     bt₂₋₁₋₁ˡ : ∀ {n} → BTree n → _
---     bt₂₋₁₋₁ˡ a = λ b c d e f g h i → bt₂ (bt₁ a b c) d (bt₁ e f g) h i
+    replace (bt₂ b d a c e) with replace e
+    replace (bt₂ b d a c e) | keep x q e′ = keep x q (bt₂ b d a c e′)
+    replace (bt₂ b d a (bt₁ c₂ c₁ c₃) e)       | pull x q e′ = keep x q (bt₁ b a (bt₂ c₂ d c₁ c₃ e′))
+    replace (bt₂ b d a (bt₂ c₂ c₄ c₁ c₃ c₅) e) | pull x q e′ = keep x q (bt₂ b c₄ a (bt₁ c₂ c₁ c₃) (bt₁ d c₅ e′))
+    replace (bt₂ b d a c (nil {p = p})) | leaf = keep d p (bt₁ b a c)
 
---     bt₂₋₁₋₁ʳ : ∀ {n} → BTree (suc n) → _
---     bt₂₋₁₋₁ʳ a = λ b c d e f g h i → bt₂ a b (bt₁ c d e) f (bt₁ g h i)
+    search : ∀ {n lb ub} → BTree⁺ lb ub n → Deleted⁺ lb ub n
+    search (nil {p = p}) = keep (nil {p = p})
+
+    search (bt₁ b a c) with cmp₂ k b
+    search (bt₁ b a c) | c< p with search a
+    search (bt₁ b a c) | c< p | keep a′ = keep (bt₁ b a′ c)
+    search (bt₁ b a (bt₁ c₂ c₁ c₃))       | c< p | pull a′ = pull (bt₂ b c₂ a′ c₁ c₃)
+    search (bt₁ b a (bt₂ c₂ c₄ c₁ c₃ c₅)) | c< p | pull a′ = keep (bt₁ c₂ (bt₁ b a′ c₁) (bt₁ c₄ c₃ c₅))
+    search (bt₁ b a c) | c≈ p with replace a
+    search (bt₁ b a c) | c≈ p | keep x q a′ = keep (bt₁ x a′ (extend q c))
+    search (bt₁ b a (bt₁ c₂ c₁ c₃))       | c≈ p | pull x q a′ = pull (bt₂ x c₂ a′ (extend q c₁) c₃)
+    search (bt₁ b a (bt₂ c₂ c₄ c₁ c₃ c₅)) | c≈ p | pull x q a′ = keep (bt₁ c₂ (bt₁ x a′ (extend q c₁)) (bt₁ c₄ c₃ c₅))
+    search {lb = lb} (bt₁ b (nil {p = p₁}) (nil {p = p₂})) | c≈ p | leaf = pull (nil {p = trans⁺ lb p₁ p₂})
+    search (bt₁ b a c) | c> p with search c
+    search (bt₁ b a c) | c> p | keep c′ = keep (bt₁ b a c′)
+    search (bt₁ b (bt₁ a₂ a₁ a₃) c)       | c> p | pull c′ = pull (bt₂ a₂ b a₁ a₃ c′)
+    search (bt₁ b (bt₂ a₂ a₄ a₁ a₃ a₅) c) | c> p | pull c′ = keep (bt₁ a₄ (bt₁ a₂ a₁ a₃) (bt₁ b a₅ c′))
+
+    search (bt₂ b d a c e) with cmp₃ k b d
+    search (bt₂ b d a c e) | c<  p with search a
+    search (bt₂ b d a c e) | c<  p | keep a′ = keep (bt₂ b d a′ c e)
+    search (bt₂ b d a (bt₁ c₂ c₁ c₃) e)       | c<  p | pull a′ = keep (bt₁ d (bt₂ b c₂ a′ c₁ c₃) e)
+    search (bt₂ b d a (bt₂ c₂ c₄ c₁ c₃ c₅) e) | c<  p | pull a′ = keep (bt₂ c₂ d (bt₁ b a′ c₁) (bt₁ c₄ c₃ c₅) e)
+    search (bt₂ b d a c e) | c≈₁ p with replace a
+    search (bt₂ b d a c e) | c≈₁ p | keep x q a′ = keep (bt₂ x d a′ (extend q c) e)
+    search (bt₂ b d a (bt₁ c₂ c₁ c₃) e)       | c≈₁ p | pull x q a′ = keep (bt₁ d (bt₂ x c₂ a′ (extend q c₁) c₃) e)
+    search (bt₂ b d a (bt₂ c₂ c₄ c₁ c₃ c₅) e) | c≈₁ p | pull x q a′ = keep (bt₂ c₂ d (bt₁ x a′ (extend q c₁)) (bt₁ c₄ c₃ c₅) e)
+    search {lb = lb} (bt₂ b d (nil {p = p₁}) (nil {p = p₂}) e) | c≈₁ p | leaf = keep (bt₁ d (nil {p = trans⁺ lb p₁ p₂}) e)
+    search (bt₂ b d a c e) | c>< p q with search c
+    search (bt₂ b d a c e) | c>< p q | keep c′ = keep (bt₂ b d a c′ e)
+    search (bt₂ b d a c (bt₁ e₂ e₁ e₃))       | c>< p q | pull c′ = keep (bt₁ b a (bt₂ d e₂ c′ e₁ e₃))
+    search (bt₂ b d a c (bt₂ e₂ e₄ e₁ e₃ e₅)) | c>< p q | pull c′ = keep (bt₂ b e₂ a (bt₁ d c′ e₁) (bt₁ e₄ e₃ e₅))
+    search (bt₂ b d a c e) | c≈₂ p with replace c
+    search (bt₂ b d a c e) | c≈₂ p | keep x q c′ = keep (bt₂ b x a c′ (extend q e))
+    search (bt₂ b d a c (bt₁ e₂ e₁ e₃))       | c≈₂ p | pull x q c′ = keep (bt₁ b a (bt₂ x e₂ c′ (extend q e₁) e₃))
+    search (bt₂ b d a c (bt₂ e₂ e₄ e₁ e₃ e₅)) | c≈₂ p | pull x q c′ = keep (bt₂ b e₂ a (bt₁ x c′ (extend q e₁)) (bt₁ e₄ e₃ e₅))
+    search {ub = ub} (bt₂ b d a (nil {p = p₁}) (nil {p = p₂})) | c≈₂ p | leaf = keep (bt₁ b a (nil {p = trans⁺ [ proj₁ b ] {[ proj₁ d ]} {ub} p₁ p₂}))
+    search (bt₂ b d a c e) | c>  p with search e
+    search (bt₂ b d a c e) | c> p | keep e′ = keep (bt₂ b d a c e′)
+    search (bt₂ b d a (bt₁ c₂ c₁ c₃) e)       | c>  p | pull e′ = keep (bt₁ b a (bt₂ c₂ d c₁ c₃ e′))
+    search (bt₂ b d a (bt₂ c₂ c₄ c₁ c₃ c₅) e) | c>  p | pull e′ = keep (bt₂ b c₄ a (bt₁ c₂ c₁ c₃) (bt₁ d c₅ e′))
 
 
---     merge-bt₁-l : ∀ {n} → BTree n → KV → BTree (suc n) → Deleted (2 + n)
---     merge-bt₁-l a′ b (bt₁ c₀ c₁ c₂)       = pull (bt₂ a′ b c₀ c₁ c₂)
---     merge-bt₁-l a′ b (bt₂ c₀ c₁ c₂ c₃ c₄) = keep (bt₁₋₁₋₁ a′ b c₀ c₁ c₂ c₃ c₄)
+  empty : BTree⁺ ⊥⁺ ⊤⁺ 0
+  empty = nil
 
---     merge-bt₁-r : ∀ {n} → BTree (suc n) → KV → BTree n → Deleted (2 + n)
---     merge-bt₁-r (bt₁ a₀ a₁ a₂)       b c′ = pull (bt₂ a₀ a₁ a₂ b c′)
---     merge-bt₁-r (bt₂ a₀ a₁ a₂ a₃ a₄) b c′ = keep (bt₁₋₁₋₁ a₀ a₁ a₂ a₃ a₄ b c′)
+  singleton : (k : K) → V k → BTree⁺ ⊥⁺ ⊤⁺ 1
+  singleton k v = bt₁ (k , v) nil nil
 
---     merge-bt₂-l : ∀ {n} → BTree n → KV → BTree (suc n) → KV → BTree (suc n) → Deleted (2 + n)
---     merge-bt₂-l a′ b (bt₁ c₀ c₁ c₂)       d e = keep (bt₁₋₂ˡ a′ b c₀ c₁ c₂ d e)
---     merge-bt₂-l a′ b (bt₂ c₀ c₁ c₂ c₃ c₄) d e = keep (bt₂₋₁₋₁ˡ a′ b c₀ c₁ c₂ c₃ c₄ d e)
+  lookup : ∀ {n} → (k : K) → BTree⁺ ⊥⁺ ⊤⁺ n → Maybe (V k)
+  lookup k = go
+    where
+    go : ∀ {n lb ub} → BTree⁺ lb ub n → Maybe (V k)
+    go nil = nothing
 
---     merge-bt₂-m : ∀ {n} → BTree (suc n) → KV → BTree n → KV → BTree (suc n) → Deleted (2 + n)
---     merge-bt₂-m a b c′ d (bt₁ e₀ e₁ e₂)       = keep (bt₁₋₂ʳ a b c′ d e₀ e₁ e₂)
---     merge-bt₂-m a b c′ d (bt₂ e₀ e₁ e₂ e₃ e₄) = keep (bt₂₋₁₋₁ʳ a b c′ d e₀ e₁ e₂ e₃ e₄)
+    go (bt₁ b a c) with cmp₂ k b
+    ... | c< _ = go a
+    ... | c≈ p rewrite p = just (proj₂ b)
+    ... | c> _ = go c
 
---     merge-bt₂-r : ∀ {n} → BTree (suc n) → KV → BTree (suc n) → KV → BTree n → Deleted (2 + n)
---     merge-bt₂-r a b (bt₁ c₀ c₁ c₂)       d e′ = keep (bt₁₋₂ʳ a b c₀ c₁ c₂ d e′)
---     merge-bt₂-r a b (bt₂ c₀ c₁ c₂ c₃ c₄) d e′ = keep (bt₂₋₁₋₁ʳ a b c₀ c₁ c₂ c₃ c₄ d e′)
+    go (bt₂ b d a c e) with cmp₃ k b d
+    ... | c<  _  = go a
+    ... | c≈₁ p rewrite p = just (proj₂ b)
+    ... | c>< _ _ = go c
+    ... | c≈₂ p rewrite p = just (proj₂ d)
+    ... | c>  _ = go e
 
+  fold : ∀ {n r} {R : Set r}
+         (f₃ : KV → KV → R → R → R → R)
+         (f₂ : KV → R → R → R) (l : R) →
+         BTree⁺ ⊥⁺ ⊤⁺ n → R
+  fold {R = R} f₃ f₂ l = go
+    where
+    go : ∀ {n lb ub} → BTree⁺ lb ub n → R
+    go nil             = l
+    go (bt₁ b a c)     = f₂ b (go a) (go c)
+    go (bt₂ b d a c e) = f₃ b d (go a) (go c) (go e)
 
---     replace-bt₁-r : ∀ {n} → KV → BTree (suc n) → KV → BTree n → Replace (2 + n)
---     replace-bt₁-r k (bt₁ a₀ a₁ a₂)       b c′ = pull k (bt₂ a₀ a₁ a₂ b c′)
---     replace-bt₁-r k (bt₂ a₀ a₁ a₂ a₃ a₄) b c′ = keep k (bt₁₋₁₋₁ a₀ a₁ a₂ a₃ a₄ b c′)
+data Tree : Set (k ⊔ v ⊔ ℓ) where
+  some : let open Sized
+         in ∀ {n} → BTree⁺ ⊥⁺ ⊤⁺ n → Tree
 
---     replace-bt₂-r : ∀ {n} → KV → BTree (suc n) → KV → BTree (suc n) → KV → BTree n → Replace (2 + n)
---     replace-bt₂-r k a b (bt₁ c₀ c₁ c₂)       d e′ = keep k (bt₁₋₂ʳ a b c₀ c₁ c₂ d e′)
---     replace-bt₂-r k a b (bt₂ c₀ c₁ c₂ c₃ c₄) d e′ = keep k (bt₂₋₁₋₁ʳ a b c₀ c₁ c₂ c₃ c₄ d e′)
+private
+  module _ where
+    open Sized
 
---     replace : ∀ {n} → BTree n → Replace n
---     replace nil = leaf
---     replace (bt₁ a b c) with replace c
---     ... | keep k c′ = keep k (bt₁ a b c′)
---     ... | pull k c′ = replace-bt₁-r k a b c′
---     ... | leaf      = pull b a
---     replace (bt₂ a b c d e) with replace e
---     ... | keep k e′ = keep k (bt₂ a b c d e′)
---     ... | pull k e′ = replace-bt₂-r k a b c d e′
---     ... | leaf      = keep d (bt₁ a b c)
+    repack-i : ∀ {n} → Inserted⁺ ⊥⁺ ⊤⁺ n → Tree
+    repack-i (Sized.keep t)     = some t
+    repack-i (Sized.push l x r) = some (Sized.bt₁ l x r)
 
+    repack-d : ∀ {n} → Deleted⁺ ⊥⁺ ⊤⁺ n → Tree
+    repack-d (Sized.keep t) = some t
+    repack-d (Sized.pull t) = some t
 
---     search : ∀ {n} → BTree n → Deleted n
---     search nil = keep nil
+insertWith : (k : K) → V k → (V k → V k → V k) → Tree → Tree
+insertWith k v f (some t) = repack-i (Sized.insertWith⁺ k v f t)
 
---     search (bt₁ a b c) with cmp₂ k b
---     search (bt₁ a b c) | c<   with search a
---     ... | keep a′ = keep (bt₁ a′ b c)
---     ... | pull a′ = merge-bt₁-l a′ b c
---     search (bt₁ a b c) | c≈ _ with replace a
---     ... | keep k a′ = keep (bt₁ a′ k c)
---     ... | pull k a′ = merge-bt₁-l a′ k c
---     ... | leaf      = pull nil
---     search (bt₁ a b c) | c>   with search c
---     ... | keep c′ = keep (bt₁ a b c′)
---     ... | pull c′ = merge-bt₁-r a b c′
+insert : (k : K) → V k → Tree → Tree
+insert k v = insertWith k v const
 
---     search (bt₂ a b c d e) with cmp₃ k b d
---     search (bt₂ a b c d e) | c<    with search a
---     ... | keep a′ = keep (bt₂ a′ b c d e)
---     ... | pull a′ = merge-bt₂-l a′ b c d e
---     search (bt₂ a b c d e) | c≈₁ _ with replace a
---     ... | keep x a′ = keep (bt₂ a′ x c d e)
---     ... | pull x a′ = merge-bt₂-l a′ x c d e
---     ... | leaf      = keep (bt₁ c d e)
---     search (bt₂ a b c d e) | c><   with search c
---     ... | keep c′ = keep (bt₂ a b c′ d e)
---     ... | pull c′ = merge-bt₂-m a b c′ d e
---     search (bt₂ a b c d e) | c≈₂ _ with replace c
---     ... | keep x c′ = keep (bt₂ a b c′ x e)
---     ... | pull x c′ = merge-bt₂-m a b c′ x e
---     ... | leaf      = keep (bt₁ a b c)
---     search (bt₂ a b c d e) | c>    with search e
---     ... | keep e′ = keep (bt₂ a b c d e′)
---     ... | pull e′ = merge-bt₂-r a b c d e′
+delete : K → Tree → Tree
+delete k (some t) = repack-d (Sized.delete k t)
 
---   empty : BTree 0
---   empty = nil
+fold : ∀ {r} {R : Set r}
+       (f₃ : KV → KV → R → R → R → R)
+       (f₂ : KV → R → R → R) (l : R) →
+       Tree → R
+fold f₃ f₂ l (some t) = Sized.fold f₃ f₂ l t
 
---   singleton : (k : K) → V k → BTree 1
---   singleton k v = bt₁ nil (k , v) nil
+empty : Tree
+empty = some Sized.empty
 
---   lookup : ∀ {n} → (k : K) → BTree n → Maybe (V k)
---   lookup k = go
---     where
---     go : ∀ {n} → BTree n → Maybe (V k)
---     go nil = nothing
+singleton : (k : K) → V k → Tree
+singleton k v = some (Sized.singleton k v)
 
---     go (bt₁ a b c) with cmp₂ k b
---     ... | c< = go a
---     ... | c≈ p rewrite p = just (proj₂ b)
---     ... | c> = go c
+lookup : (k : K) → Tree → Maybe (V k)
+lookup k (some t) = Sized.lookup k t
 
---     go (bt₂ a b c d e) with cmp₃ k b d
---     ... | c<  = go a
---     ... | c≈₁ p rewrite p = just (proj₂ b)
---     ... | c>< = go c
---     ... | c≈₂ p rewrite p = just (proj₂ d)
---     ... | c>  = go e
+_∈?_ : K → Tree → Bool
+k ∈? t = maybeToBool (lookup k t)
 
---   fold : ∀ {n r} {R : Set r}
---          (f₃ : R → KV → R → KV → R → R)
---          (f₂ : R → KV → R → R) (l : R) →
---          BTree n → R
---   fold f₃ f₂ l = go
---     where
---     go : ∀ {n} → BTree n → _
---     go nil             = l
---     go (bt₁ a b c)     = f₂ (go a) b (go c)
---     go (bt₂ a b c d e) = f₃ (go a) b (go c) d (go e)
+fromList : List KV → Tree
+fromList = foldr (uncurry insert) empty
 
--- data Tree : Set (k ⊔ v) where
---   some : ∀ {n} → Sized.BTree n → Tree
+toList : Tree → List KV
+toList = DL.toList ∘ fold (λ b d a c e → a ++ b ∷ c ++ d ∷ e) (λ b a c → a ++ b ∷ c) []
 
--- private
---   repack-i : ∀ {n} → Sized.Inserted n → Tree
---   repack-i (Sized.keep t)     = some t
---   repack-i (Sized.push l x r) = some (Sized.bt₁ l x r)
+unionWith : (∀ {k} → V k → V k → V k) → Tree → Tree → Tree
+unionWith f t₁ t₂ = foldr (λ {(k , v) → insertWith k v f}) t₂ (toList t₁)
 
---   repack-d : ∀ {n} → Sized.Deleted n → Tree
---   repack-d (Sized.keep t) = some t
---   repack-d (Sized.pull t) = some t
-
--- insertWith : (k : K) → V k → (V k → V k → V k) → Tree → Tree
--- insertWith k v f (some t) = repack-i (Sized.insertWith k v f t)
-
--- insert : (k : K) → V k → Tree → Tree
--- insert k v = insertWith k v const
-
--- delete : K → Tree → Tree
--- delete k (some t) = repack-d (Sized.delete k t)
-
--- fold : ∀ {r} {R : Set r}
---        (f₃ : R → KV → R → KV → R → R)
---        (f₂ : R → KV → R → R) (l : R) →
---        Tree → R
--- fold f₃ f₂ l (some t) = Sized.fold f₃ f₂ l t
-
--- empty : Tree
--- empty = some Sized.empty
-
--- singleton : (k : K) → V k → Tree
--- singleton k v = some (Sized.singleton k v)
-
--- lookup : (k : K) → Tree → Maybe (V k)
--- lookup k (some t) = Sized.lookup k t
-
--- _∈?_ : K → Tree → Bool
--- k ∈? t = maybeToBool (lookup k t)
-
--- fromList : List KV → Tree
--- fromList = foldr (uncurry insert) empty
-
--- toList : Tree → List KV
--- toList = DL.toList ∘ fold (λ a b c d e → a ++ b ∷ c ++ d ∷ e) (λ a b c → a ++ b ∷ c) []
-
--- unionWith : (∀ {k} → V k → V k → V k) → Tree → Tree → Tree
--- unionWith f t₁ t₂ = foldr (λ {(k , v) → insertWith k v f}) t₂ (toList t₁)
-
--- union : Tree → Tree → Tree
--- union = unionWith const
+union : Tree → Tree → Tree
+union = unionWith const
