@@ -97,7 +97,8 @@ module Sized where
            (r : BTree⁺ [ x ]₁ ub     n) →
            Inserted⁺ lb ub n
 
-  insertWith⁺ : ∀ {n} (k : K) → V k → (V k → V k → V k) → BTree⁺ ⊥⁺ ⊤⁺ n → Inserted⁺ ⊥⁺ ⊤⁺ n
+  insertWith⁺ : ∀ {n} (k : K) (v : V k) (f : V k → V k → V k)
+                (t : BTree⁺ ⊥⁺ ⊤⁺ n) → Inserted⁺ ⊥⁺ ⊤⁺ n
   insertWith⁺ k v f = go _ _
     where
     go : ∀ {n lb ub}
@@ -110,7 +111,8 @@ module Sized where
     go p₁ p₂ (bt₁ b a c)         | c< pa with go p₁ pa a
     ... | keep a′       = keep (bt₁ b a′ c)
     ... | push a₂ a₁ a₃ = keep (bt₂ a₂ b a₁ a₃ c)
-    go p₁ p₂ (bt₁ (bk , bv) a c) | c≈ pb rewrite sym pb = keep (bt₁ (k , f v bv) a c)
+    go p₁ p₂ (bt₁ (bk , bv) a c) | c≈ pb rewrite sym pb
+                        = keep (bt₁ (k , f v bv) a c)
     go p₁ p₂ (bt₁ b a c)         | c> pc with go pc p₂ c
     ... | keep c′       = keep (bt₁ b a c′)
     ... | push c₂ c₁ c₃ = keep (bt₂ b c₂ a c₁ c₃)
@@ -119,11 +121,13 @@ module Sized where
     go p₁ p₂ (bt₂ b d a c e)         | c<  pa with go p₁ pa a
     ... | keep a′       = keep (bt₂ b d a′ c e)
     ... | push a₂ a₁ a₃ = push b (bt₁ a₂ a₁ a₃) (bt₁ d c e)
-    go p₁ p₂ (bt₂ (bk , bv) d a c e) | c≈₁ pb rewrite sym pb = keep (bt₂ (k , f v bv) d a c e)
+    go p₁ p₂ (bt₂ (bk , bv) d a c e) | c≈₁ pb rewrite sym pb
+                        = keep (bt₂ (k , f v bv) d a c e)
     go p₁ p₂ (bt₂ b d a c e)         | c>< pc₁ pc₂ with go pc₁ pc₂ c
     ... | keep c′       = keep (bt₂ b d a c′ e)
     ... | push c₂ c₁ c₃ = push c₂ (bt₁ b a c₁) (bt₁ d c₃ e)
-    go p₁ p₂ (bt₂ b (dk , dv) a c e) | c≈₂ pd rewrite sym pd = keep (bt₂ b (k , f v dv) a c e)
+    go p₁ p₂ (bt₂ b (dk , dv) a c e) | c≈₂ pd rewrite sym pd
+                        = keep (bt₂ b (k , f v dv) a c e)
     go p₁ p₂ (bt₂ b d a c e)         | c>  pe with go pe p₂ e
     ... | keep e′       = keep (bt₂ b d a c e′)
     ... | push e₂ e₁ e₃ = push d (bt₁ b a c) (bt₁ e₂ e₁ e₃)
@@ -146,7 +150,8 @@ module Sized where
            Replace⁺ lb ub (suc n)
     leaf : Replace⁺ lb ub 0
 
-  extend : ∀ {lb₁ lb₂ ub n} (p : lb₁ <⁺ lb₂) (t : BTree⁺ lb₂ ub n) → BTree⁺ lb₁ ub n
+  extend : ∀ {lb₁ lb₂ ub n} (p : lb₁ <⁺ lb₂) (t : BTree⁺ lb₂ ub n) →
+           BTree⁺ lb₁ ub n
   extend {l} p (nil p₁)        = nil (trans⁺ l p p₁)
   extend     p (bt₁ b a c)     = bt₁ b (extend p a) c
   extend     p (bt₂ b d a c e) = bt₂ b d (extend p a) c e
@@ -338,7 +343,8 @@ fromList : List KV → Tree
 fromList = foldr (uncurry insert) empty
 
 toList : Tree → List KV
-toList = DL.toList ∘ fold (λ b d a c e → a ++ b ∷ c ++ d ∷ e) (λ b a c → a ++ b ∷ c) []
+toList = DL.toList ∘ fold (λ b d a c e → a ++ b ∷ c ++ d ∷ e)
+  (λ b a c → a ++ b ∷ c) []
 
 unionWith : (∀ {k} → V k → V k → V k) → Tree → Tree → Tree
 unionWith f t₁ t₂ = foldr (λ {(k , v) → insertWith k v f}) t₂ (toList t₁)
